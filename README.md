@@ -2,6 +2,8 @@
 
 Port of CloudSeed VST plugin (https://github.com/ValdemarOrn/CloudSeed) with new GUI based on JUCE Framework
 
+<img src="screenshot.png" alt="screenshot"><br>
+
 ---
 #### Features:<br>
 [x] multi channel support<br>
