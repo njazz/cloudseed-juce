@@ -62,8 +62,10 @@ namespace CloudSeed
 
             // added:
             for (int i=0;i<bufferSize;i++){
-                delayBuffer[i]=0;
                 output[i]=0;
+            }
+            for (int i=0;i<DelayBufferSamples;i++){
+                delayBuffer[i]=0;
             }
 		}
 

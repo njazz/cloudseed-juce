@@ -456,6 +456,7 @@ void CloudSeedProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     auto count = getTotalNumInputChannels();
 
     controller->SetSamplerate(sampleRate);
+    controller->SetChannelCount(count);
 
     ///> @todo validate buffer size
     /// there is currently a limitation in engine

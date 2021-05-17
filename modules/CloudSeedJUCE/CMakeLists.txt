@@ -1,13 +1,15 @@
 cmake_minimum_required(VERSION 3.6)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_OSX_DEPLOYMENT_TARGET 10.11)
+set(CMAKE_OSX_DEPLOYMENT_TARGET 10.9)
 set(CMAKE_OSX_SYSROOT /)
 set(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY true)
 
-set(CMAKE_XCODE_EFFECTIVE_PLATFORMS "-iphoneos;-iphonesimulator")
-set_property(GLOBAL PROPERTY XCODE_EMIT_EFFECTIVE_PLATFORM_NAME ON)
+set(CMAKE_OSX_ARCHITECTURES=x86_64;i386;arm64)
+
+# set(CMAKE_XCODE_EFFECTIVE_PLATFORMS "-iphoneos;-iphonesimulator")
+# set_property(GLOBAL PROPERTY XCODE_EMIT_EFFECTIVE_PLATFORM_NAME ON)
 
 project(CloudSeedJUCE)
 
@@ -43,8 +45,15 @@ set(CS_HEADER_DIRS
 
 add_subdirectory(../../third_party/JUCE "JUCE")
 
+set(PLUGIN_FORMATS VST3 AU)
+
+if (WITH_VST2)
+juce_set_vst2_sdk_path(../../../vst2/)
+set(PLUGIN_FORMATS ${PLUGIN_FORMATS} VST)
+endif()
+
 juce_add_plugin(CloudSeedJUCE
-    VERSION 2.0.0                               # Set this if the plugin version is different to the project version
+    VERSION 0.0.2                               # Set this if the plugin version is different to the project version
     ICON_BIG ${CMAKE_CURRENT_SOURCE_DIR}/img/icon.png                              # ICON_* arguments specify a path to an image file to use as an icon for the Standalone
     ICON_SMALL ${CMAKE_CURRENT_SOURCE_DIR}/img/icon.png
     COMPANY_NAME "CloudSeed [JUCE]"                          # Specify the name of the plugin's author
@@ -54,9 +63,9 @@ juce_add_plugin(CloudSeedJUCE
     IS_MIDI_EFFECT FALSE                 # Is this plugin a MIDI effect?
     EDITOR_WANTS_KEYBOARD_FOCUS TRUE    # Does the editor need keyboard focus?
     COPY_PLUGIN_AFTER_BUILD TRUE        # Should the plugin be installed to a default location after building?
-    PLUGIN_MANUFACTURER_CODE Andj               # A four-character manufacturer id with at least one upper-case character
+    PLUGIN_MANUFACTURER_CODE Clsj               # A four-character manufacturer id with at least one upper-case character
     PLUGIN_CODE Clsj                            # A unique four-character plugin id with at least one upper-case character
-    FORMATS Standalone VST3 AU                # The formats to build. Other valid formats are: AAX Unity VST AU AUv3 // AU VST3
+    FORMATS Standalone ${PLUGIN_FORMATS}                # The formats to build. Other valid formats are: AAX Unity VST AU AUv3 // AU VST3
     PRODUCT_NAME "CloudSeed [JUCE]")        # The name of the final executable, which can differ from the target name
 
 juce_generate_juce_header(CloudSeedJUCE)

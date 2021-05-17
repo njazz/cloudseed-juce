@@ -54,6 +54,7 @@ namespace CloudSeed
 
         // added:
         void SetChannelCount(const size_t&s){
+            channels.clear();
             channels.resize(s);
 
             for (auto& c: channelIns){
@@ -67,9 +68,8 @@ namespace CloudSeed
             lineBuffers.resize(s);
 
             auto idx = 0;
-            for (auto& c: channels)
-                {
-                c.reset(new ReverbChannel(bufferSize,samplerate,idx));
+            for (auto& c: channels){
+                c.reset(new ReverbChannel(bufferSize, samplerate, idx));
                 idx++;
             }
 
