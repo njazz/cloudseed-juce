@@ -46,8 +46,13 @@ using VerticalLayoutViewPtr = std::shared_ptr<VerticalLayoutView>;
 
 ///> gets bundled font
 static inline const juce::Font GetCloudSeedFont(){
+#ifdef _MSC_VER
+    return Font();
+#else
+    // todo: this needs fix on windows
     return Font (Typeface::createSystemTypefaceFor (BinaryData::OpenSansRegular_ttf,
                                                   BinaryData::OpenSansRegular_ttfSize));
+#endif
 }
 
 

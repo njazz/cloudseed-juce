@@ -447,6 +447,9 @@ void CloudSeedProcessor::changeProgramName(int index, const juce::String& newNam
 //==============================================================================
 void CloudSeedProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
+    if (sampleRate < 1) return;
+    if (samplesPerBlock < 1) return;
+
     ///> @todo work directly with 64 bit values
 
     std::vector<float> pars;
@@ -487,6 +490,8 @@ bool CloudSeedProcessor::isBusesLayoutSupported(const BusesLayout& layouts) cons
 
 void CloudSeedProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
+    
+
     if (!controller)
         return;
 
@@ -506,14 +511,18 @@ void CloudSeedProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mi
     //
     // assert(length < 4096);
 
-    auto numChannels = getTotalNumInputChannels();
+    static const size_t numChannels = getTotalNumInputChannels();
 
     for (int ch = 0; ch < numChannels; ch++)
         for (int i = 0; i < length; i++) {
             doubleBuffer[ch][i] = buffer.getWritePointer(ch)[i];
         }
 
-    double* channels[numChannels];
+    static std::vector<double*> channelVec;
+    if (channelVec.size() != numChannels)
+        channelVec.resize(numChannels);
+    static double** channels = channelVec.data();
+    // double* channels[numChannels];
 
     for (int ch = 0; ch < numChannels; ch++)
         channels[ch] = doubleBuffer[ch].data();
