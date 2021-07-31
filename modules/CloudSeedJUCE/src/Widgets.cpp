@@ -1,5 +1,7 @@
 #include "Widgets.hpp"
 
+const ColorTheme _theColorTheme = ColorTheme();
+
 void LayoutViewCommon::setLayout(const LayoutData& d)
 {
     _layoutData = d;
@@ -166,7 +168,7 @@ void Knob::mouseDown(const juce::MouseEvent& e)
 }
 
 void Knob::mouseDrag(const juce::MouseEvent & e) {
-    value -= float(e.getPosition().y - _lastPosition.y) / getHeight() ;
+    value -= 0.5* float(e.getPosition().y - _lastPosition.y) / getHeight() ;
     _lastPosition = e.getPosition();
 
     if (value<0) value = 0;

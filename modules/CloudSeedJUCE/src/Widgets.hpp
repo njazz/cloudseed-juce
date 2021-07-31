@@ -77,7 +77,8 @@ struct ColorTheme {
 };
 
 ///> currently the only theme
-static inline const ColorTheme CurrentColorTheme(){ return  ColorTheme(); }
+extern const ColorTheme _theColorTheme;
+static inline const ColorTheme& CurrentColorTheme(){ return _theColorTheme; }
 
 ///> all UI elements
 namespace Widgets{
