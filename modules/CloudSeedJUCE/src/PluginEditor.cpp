@@ -156,34 +156,34 @@ CloudSeedJUCEEditor::CloudSeedJUCEEditor(CloudSeedProcessor& p)
 
     CSJ_LAYOUT_BEGIN(_4buttons)
 
-    CSJ_LAYOUT_MARGIN_PERCENT(1)
+    CSJ_LAYOUT_MARGIN_RATIO(2)
     CSJ_LAYOUT_PERCENT(23.75)
 
-    CSJ_LAYOUT_MARGIN_PERCENT(1)
+    CSJ_LAYOUT_MARGIN_RATIO(1)
     CSJ_LAYOUT_PERCENT(23.75)
 
-    CSJ_LAYOUT_MARGIN_PERCENT(1)
+    CSJ_LAYOUT_MARGIN_RATIO(1)
     CSJ_LAYOUT_PERCENT(23.75)
 
-    CSJ_LAYOUT_MARGIN_PERCENT(1)
+    CSJ_LAYOUT_MARGIN_RATIO(1)
     CSJ_LAYOUT_PERCENT(23.75)
 
-    CSJ_LAYOUT_END_PERCENT(1)
+    CSJ_LAYOUT_END_RATIO(1)
 
     //
 
     CSJ_LAYOUT_BEGIN(_3eq)
 
-    CSJ_LAYOUT_MARGIN_PERCENT(1)
+    CSJ_LAYOUT_MARGIN_RATIO(2)
     CSJ_LAYOUT_RATIO(23.75)
 
-    CSJ_LAYOUT_MARGIN_PERCENT(1)
+    CSJ_LAYOUT_MARGIN_RATIO(1)
     CSJ_LAYOUT_RATIO(23.75)
 
-    CSJ_LAYOUT_MARGIN_PERCENT(1)
+    CSJ_LAYOUT_MARGIN_RATIO(1)
     CSJ_LAYOUT_RATIO(23.75)
 
-    CSJ_LAYOUT_END_PERCENT(1)
+    CSJ_LAYOUT_END_RATIO(1)
 
     // ---
 
@@ -457,6 +457,7 @@ void CloudSeedJUCEEditor::resized()
  void CloudSeedJUCEEditor::parameterValueChanged(int parameterIndex, float newValue)
 {
     //        juce::MessageManagerLock l;
+    audioProcessor.dirtyFlag = true;
 
     for (auto b : _buttons)
         for (auto e : b) {

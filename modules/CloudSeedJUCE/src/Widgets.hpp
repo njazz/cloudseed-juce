@@ -61,8 +61,11 @@ static inline const juce::Font GetCloudSeedFont(const float& size){
 ///> color & font settings
 struct ColorTheme {
     juce::Colour backgroundColor = juce::Colour::fromFloatRGBA(.9,.9,.9,1);
+    juce::Colour groupBackgroundColor = juce::Colour::fromFloatRGBA(.87,.87,.87,1);
+    juce::Colour buttonBackgroundColor = juce::Colour::fromFloatRGBA(.67,.67,.67,1);;
     juce::Colour groupColor = juce::Colour::fromFloatRGBA(.7,.7,.7,1);
     juce::Colour knobColor = juce::Colour::fromFloatRGBA(.0,.5,1,1);;
+    juce::Colour knobValueBackground = juce::Colour::fromFloatRGBA(.7,.7,.7,.5);;
     juce::Colour defaultTextColor = juce::Colour::fromFloatRGBA(.2,.2,.2,1);
     juce::Colour buttonOffBackground = juce::Colour::fromFloatRGBA(.5,.5,.5,1);
     juce::Colour buttonOnBackground = juce::Colour::fromFloatRGBA(.0,.5,1,1);

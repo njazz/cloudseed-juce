@@ -69,9 +69,10 @@ void ButtonSlider::paint(juce::Graphics& g)
     p.addRoundedRectangle(b.toFloat(), 5);
 
     juce::Path p0;
-    p0.addRoundedRectangle(getLocalBounds().toFloat(), 5);
-    g.setColour(CurrentColorTheme().buttonOffBackground);
-    g.strokePath(p0,PathStrokeType(1));
+    p0.addRoundedRectangle(getLocalBounds().toFloat(), 5.0f);
+    g.setColour(CurrentColorTheme().buttonBackgroundColor);
+    g.fillPath(p0);
+
 
     g.setColour((value || ((max-min) > 1)) ? CurrentColorTheme().buttonOnBackground : CurrentColorTheme().buttonOffBackground);
     g.fillPath(p);
@@ -122,15 +123,17 @@ void Knob::paint(juce::Graphics& g)
     float s = .6 * 2* M_PI;
     float e = (1.4) * 2*M_PI;
 
+    // gray arc
     juce::Path p;
     p.addArc(x0 * .5,8,w,h,s,e, true);
-    g.strokePath(p,juce::PathStrokeType(2));
+    g.strokePath(p,juce::PathStrokeType(2.0f));
 
+    // blue arc
     g.setColour(CurrentColorTheme().knobColor);
     e -= .8*(1-value)*2*M_PI;
     p.clear();
-    p.addArc(x0 * .5,8,w,h,s,e, true);
-    g.strokePath(p,juce::PathStrokeType(3));
+    p.addArc(x0 * .5 + 1. ,8 + 1. ,w - 2,h - 2,s,e, true);
+    g.strokePath(p,juce::PathStrokeType(4.0f));
 
     // label
     g.setFont(CurrentColorTheme().font);
@@ -144,6 +147,14 @@ void Knob::paint(juce::Graphics& g)
 
     // center text
     g.setFont(9);
+
+    // value label background
+    auto lw = g.getCurrentFont().getStringWidthFloat(fnDisplay(value)) + 10;
+    g.setColour(CurrentColorTheme().knobValueBackground);
+    auto w2 = getLocalBounds().getWidth();
+    g.fillRoundedRectangle(w2 * .5-lw * .5, getLocalBounds().getHeight()-32, lw, 9, 5);
+
+    g.setColour(CurrentColorTheme().defaultTextColor);
     b.setPosition(x0*.5,getLocalBounds().getHeight()-32);
     g.drawFittedText(fnDisplay(value),b.toNearestInt(),juce::Justification::centredTop,2,0);
 
@@ -220,15 +231,26 @@ RandomSeedGroup::RandomSeedGroup(){
 void BaseGroup::paint(juce::Graphics& g)
 {
     juce::Path p;
-    p.addRoundedRectangle(getLocalBounds().toFloat(), 10);
 
-    g.setColour(CurrentColorTheme().groupColor);
-    g.strokePath(p,juce::PathStrokeType(1));
+    auto b = getLocalBounds().toFloat();
+    p.addRoundedRectangle(b, 10.0f);
+
+    g.setColour(CurrentColorTheme().groupBackgroundColor);
+    g.fillPath(p,AffineTransform());
+
+//    g.strokePath(p,juce::PathStrokeType(1.5f));
+//    p.clear();
+//    b.reduce(1,1);
+//    p.addRoundedRectangle(b, 10.0f);
+//    g.setColour(CurrentColorTheme().backgroundColor);
+//    g.fillPath(p,AffineTransform());
+
 
     g.setFont(CurrentColorTheme().font);
     g.setFont(16.0f);
     g.setColour(CurrentColorTheme().defaultTextColor);
-    auto b = getLocalBounds();
+
+    b = getLocalBounds().toFloat();
     b.setHeight(25);
     g.drawFittedText(name,b.toNearestInt(),juce::Justification::centred,1);
 }

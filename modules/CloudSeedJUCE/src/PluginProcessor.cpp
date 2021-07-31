@@ -372,24 +372,45 @@ double CloudSeedProcessor::getTailLengthSeconds() const
 
 int CloudSeedProcessor::getNumPrograms()
 {
-    return factoryPresets.size(); ///< note: should be greater than 0 for some hosts
+    return factoryPresets.size() + 1; ///< note: should be greater than 0 for some hosts
 }
 
 int CloudSeedProcessor::getCurrentProgram()
 {
+    if (dirtyFlag)
+        return factoryPresets.size();
+
     return currentProgram;
 }
 
 void CloudSeedProcessor::setCurrentProgram(int index)
 {
-    if (index >= factoryPresets.size())
+    if (index >= (factoryPresets.size() + 1))
+        return;
+    if (index == factoryPresets.size())
         return;
 
     currentProgram = index;
+    dirtyFlag = false;
     auto e = factoryPresets[index].data;
 
     loadStateFromString(e);
 
+}
+
+const juce::String CloudSeedProcessor::getProgramName(int index)
+{
+    if (index >= factoryPresets.size() + 1)
+        return {};
+
+    if (index == factoryPresets.size())
+        return "* modified preset *";
+
+    return factoryPresets[index].name;
+}
+
+void CloudSeedProcessor::changeProgramName(int index, const juce::String& newName)
+{
 }
 
 // ---
@@ -415,6 +436,8 @@ void CloudSeedProcessor::loadStateFromString(const std::string& s){
     } catch (std::exception&) {
         ///> @todo handle exception
     }
+
+    dirtyFlag = false;
 }
 
 std::string CloudSeedProcessor::saveStateToString(){
@@ -430,19 +453,7 @@ std::string CloudSeedProcessor::saveStateToString(){
 
 }
 
-// ---
 
-const juce::String CloudSeedProcessor::getProgramName(int index)
-{
-    if (index >= factoryPresets.size())
-        return {};
-
-    return factoryPresets[index].name;
-}
-
-void CloudSeedProcessor::changeProgramName(int index, const juce::String& newName)
-{
-}
 
 //==============================================================================
 void CloudSeedProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)

@@ -30,11 +30,13 @@ class CloudSeedProcessor : public juce::AudioProcessor {
 
     int currentProgram = 0;
 
+
     void loadStateFromString(const std::string& s);
     std::string saveStateToString();
 
 public:
     AudioProcessorValueTreeState state;
+    bool dirtyFlag = false;
 
     //==============================================================================
     CloudSeedProcessor();
