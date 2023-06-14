@@ -2,7 +2,7 @@
   ==============================================================================
 
    This file is part of the JUCE examples.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    The code included in this file is provided under the terms of the ISC license
    http://www.isc.org/downloads/software-support-policy/isc-license. Permission
@@ -143,7 +143,7 @@ private:
 
     static float parseFloat (String::CharPointerType& t)
     {
-        t = t.findEndOfWhitespace();
+        t.incrementToEndOfWhitespace();
         return (float) CharacterFunctions::readDoubleValue (t);
     }
 
@@ -211,7 +211,7 @@ private:
         {
             TripleIndex i;
 
-            t = t.findEndOfWhitespace();
+            t.incrementToEndOfWhitespace();
             i.vertexIndex = t.getIntValue32() - 1;
             t = findEndOfFaceToken (t);
 

@@ -52,10 +52,11 @@ private:
 
     virtual void parameterValueChanged(int parameterIndex, float newValue) override;
     virtual void parameterGestureChanged(int parameterIndex, bool gestureIsStarting) override ;
-    virtual void audioProcessorParameterChanged(AudioProcessor* processor,
-        int parameterIndex,
-                                                float newValue) override ;
-    virtual void audioProcessorChanged(juce::AudioProcessor* p) override;
+    virtual void audioProcessorParameterChanged(AudioProcessor *processor,
+                                                int parameterIndex,
+                                                float newValue) override;
+    virtual void audioProcessorChanged(juce::AudioProcessor *p,
+                                       const ChangeDetails &details) override;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CloudSeedJUCEEditor)
 };

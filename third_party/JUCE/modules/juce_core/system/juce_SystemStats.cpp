@@ -2,7 +2,7 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
@@ -138,7 +138,7 @@ String SystemStats::getStackBacktrace()
 {
     String result;
 
-   #if JUCE_ANDROID || JUCE_MINGW
+   #if JUCE_ANDROID || JUCE_MINGW || JUCE_WASM
     jassertfalse; // sorry, not implemented yet!
 
    #elif JUCE_WINDOWS
@@ -174,7 +174,7 @@ String SystemStats::getStackBacktrace()
 
    #else
     void* stack[128];
-    int frames = backtrace (stack, numElementsInArray (stack));
+    auto frames = backtrace (stack, numElementsInArray (stack));
     char** frameStrings = backtrace_symbols (stack, frames);
 
     for (int i = 0; i < frames; ++i)
@@ -187,6 +187,8 @@ String SystemStats::getStackBacktrace()
 }
 
 //==============================================================================
+#if ! JUCE_WASM
+
 static SystemStats::CrashHandlerFunction globalCrashHandler = nullptr;
 
 #if JUCE_WINDOWS
@@ -223,6 +225,8 @@ void SystemStats::setApplicationCrashHandler (CrashHandlerFunction handler)
    #endif
 }
 
+#endif
+
 bool SystemStats::isRunningInAppExtensionSandbox() noexcept
 {
    #if JUCE_MAC || JUCE_IOS
@@ -248,5 +252,26 @@ bool SystemStats::isRunningInAppExtensionSandbox() noexcept
     return false;
    #endif
 }
+
+#if JUCE_UNIT_TESTS
+
+class UniqueHardwareIDTest  : public UnitTest
+{
+public:
+    //==============================================================================
+    UniqueHardwareIDTest() : UnitTest ("UniqueHardwareID", UnitTestCategories::analytics) {}
+
+    void runTest() override
+    {
+        beginTest ("getUniqueDeviceID returns usable data.");
+        {
+            expect (SystemStats::getUniqueDeviceID().isNotEmpty());
+        }
+    }
+};
+
+static UniqueHardwareIDTest uniqueHardwareIDTest;
+
+#endif
 
 } // namespace juce

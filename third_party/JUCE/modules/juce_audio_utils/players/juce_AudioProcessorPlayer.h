@@ -2,15 +2,15 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 6 End-User License
-   Agreement and JUCE Privacy Policy (both effective as of the 16th June 2020).
+   By using JUCE, you agree to the terms of both the JUCE 7 End-User License
+   Agreement and JUCE Privacy Policy.
 
-   End User License Agreement: www.juce.com/juce-6-licence
+   End User License Agreement: www.juce.com/juce-7-licence
    Privacy Policy: www.juce.com/juce-privacy-policy
 
    Or: You may also use this code under the terms of the GPL v3 (see
@@ -92,7 +92,7 @@ public:
 
     //==============================================================================
     /** @internal */
-    void audioDeviceIOCallback (const float**, int, float**, int, int) override;
+    void audioDeviceIOCallbackWithContext (const float* const*, int, float* const*, int, int, const AudioIODeviceCallbackContext&) override;
     /** @internal */
     void audioDeviceAboutToStart (AudioIODevice*) override;
     /** @internal */
@@ -101,6 +101,27 @@ public:
     void handleIncomingMidiMessage (MidiInput*, const MidiMessage&) override;
 
 private:
+    struct NumChannels
+    {
+        NumChannels() = default;
+        NumChannels (int numIns, int numOuts) : ins (numIns), outs (numOuts) {}
+
+        explicit NumChannels (const AudioProcessor::BusesLayout& layout)
+            : ins (layout.getNumChannels (true, 0)), outs (layout.getNumChannels (false, 0)) {}
+
+        AudioProcessor::BusesLayout toLayout() const
+        {
+            return { { AudioChannelSet::canonicalChannelSet (ins) },
+                     { AudioChannelSet::canonicalChannelSet (outs) } };
+        }
+
+        int ins = 0, outs = 0;
+    };
+
+    //==============================================================================
+    NumChannels findMostSuitableLayout (const AudioProcessor&) const;
+    void resizeChannels();
+
     //==============================================================================
     AudioProcessor* processor = nullptr;
     CriticalSection lock;
@@ -108,14 +129,15 @@ private:
     int blockSize = 0;
     bool isPrepared = false, isDoublePrecision = false;
 
-    int numInputChans = 0, numOutputChans = 0;
-    HeapBlock<float*> channels;
+    NumChannels deviceChannels, defaultProcessorChannels, actualProcessorChannels;
+    std::vector<float*> channels;
     AudioBuffer<float> tempBuffer;
     AudioBuffer<double> conversionBuffer;
 
     MidiBuffer incomingMidi;
     MidiMessageCollector messageCollector;
     MidiOutput* midiOutput = nullptr;
+    uint64_t sampleCount = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioProcessorPlayer)
 };

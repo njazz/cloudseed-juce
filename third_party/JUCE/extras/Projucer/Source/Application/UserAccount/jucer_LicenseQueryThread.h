@@ -2,15 +2,15 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 6 End-User License
-   Agreement and JUCE Privacy Policy (both effective as of the 16th June 2020).
+   By using JUCE, you agree to the terms of both the JUCE 7 End-User License
+   Agreement and JUCE Privacy Policy.
 
-   End User License Agreement: www.juce.com/juce-6-licence
+   End User License Agreement: www.juce.com/juce-7-licence
    Privacy Policy: www.juce.com/juce-privacy-policy
 
    Or: You may also use this code under the terms of the GPL v3 (see
@@ -309,9 +309,9 @@ private:
     static ErrorMessageAndType runTask (std::unique_ptr<AccountEnquiryBase> accountEnquiryTask, LicenseState& state)
     {
         const ErrorMessageAndType cancelledError ("Cancelled.", ErrorType::cancelled);
-        const String endpointURL = "https://api.juce.com/api/v1";
+        const String endpointURL ("https://api.juce.com/api/v1");
 
-        auto url = URL (endpointURL + accountEnquiryTask->getEndpointURLSuffix());
+        URL url (endpointURL + accountEnquiryTask->getEndpointURLSuffix());
 
         auto isPOST = accountEnquiryTask->isPOSTLikeRequest();
 
@@ -322,9 +322,11 @@ private:
             return cancelledError;
 
         int statusCode = 0;
-        auto urlStream = url.createInputStream (isPOST, nullptr, nullptr,
-                                                accountEnquiryTask->getExtraHeaders(),
-                                                5000, nullptr, &statusCode);
+        auto urlStream = url.createInputStream (URL::InputStreamOptions (isPOST ? URL::ParameterHandling::inPostData
+                                                                                : URL::ParameterHandling::inAddress)
+                                                  .withExtraHeaders (accountEnquiryTask->getExtraHeaders())
+                                                  .withConnectionTimeoutMs (5000)
+                                                  .withStatusCode (&statusCode));
 
         if (urlStream == nullptr)
             return { "Failed to connect to the web server.", ErrorType::connectionError };
@@ -339,7 +341,7 @@ private:
 
         for (;;)
         {
-            char buffer [8192];
+            char buffer [8192] = "";
             auto num = urlStream->read (buffer, sizeof (buffer));
 
             if (ThreadPoolJob::getCurrentThreadPoolJob()->shouldExit())

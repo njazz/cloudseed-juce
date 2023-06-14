@@ -2,7 +2,7 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
@@ -51,6 +51,7 @@ public:
         Linux           = 0x0400,
         Android         = 0x0800,
         iOS             = 0x1000,
+        WASM            = 0x2000,
 
         MacOSX_10_7     = MacOSX | 7,
         MacOSX_10_8     = MacOSX | 8,
@@ -61,7 +62,9 @@ public:
         MacOSX_10_13    = MacOSX | 13,
         MacOSX_10_14    = MacOSX | 14,
         MacOSX_10_15    = MacOSX | 15,
-        MacOSX_11_0     = MacOSX | 16,
+        MacOS_11        = MacOSX | 16,
+        MacOS_12        = MacOSX | 17,
+        MacOS_13        = MacOSX | 18,
 
         Win2000         = Windows | 1,
         WinXP           = Windows | 2,
@@ -69,7 +72,8 @@ public:
         Windows7        = Windows | 4,
         Windows8_0      = Windows | 5,
         Windows8_1      = Windows | 6,
-        Windows10       = Windows | 7
+        Windows10       = Windows | 7,
+        Windows11       = Windows | 8
     };
 
     /** Returns the type of operating system we're running on.
@@ -142,7 +146,16 @@ public:
         The first choice for an ID is a filesystem ID for the user's home folder or
         windows directory. If that fails then this function returns the MAC addresses.
     */
+    [[deprecated ("The identifiers produced by this function are not reliable. Use getUniqueDeviceID() instead.")]]
     static StringArray getDeviceIdentifiers();
+
+    /** This method returns a machine unique ID unaffected by storage or peripheral
+        changes.
+
+        This ID will be invalidated by changes to the motherboard and CPU on non-mobile
+        platforms, or resetting an Android device.
+    */
+    static String getUniqueDeviceID();
 
     //==============================================================================
     // CPU and memory information..
@@ -230,10 +243,11 @@ public:
     */
     static bool isRunningInAppExtensionSandbox() noexcept;
 
-
     //==============================================================================
-    // This method was spelt wrong! Please change your code to use getCpuSpeedInMegahertz() instead
-    JUCE_DEPRECATED_WITH_BODY (static int getCpuSpeedInMegaherz(), { return getCpuSpeedInMegahertz(); })
+   #ifndef DOXYGEN
+    [[deprecated ("This method was spelt wrong! Please change your code to use getCpuSpeedInMegahertz instead.")]]
+    static int getCpuSpeedInMegaherz() { return getCpuSpeedInMegahertz(); }
+   #endif
 
 private:
     SystemStats() = delete; // uses only static methods

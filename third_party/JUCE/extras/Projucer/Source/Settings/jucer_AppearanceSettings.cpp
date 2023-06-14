@@ -2,15 +2,15 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 6 End-User License
-   Agreement and JUCE Privacy Policy (both effective as of the 16th June 2020).
+   By using JUCE, you agree to the terms of both the JUCE 7 End-User License
+   Agreement and JUCE Privacy Policy.
 
-   End User License Agreement: www.juce.com/juce-6-licence
+   End User License Agreement: www.juce.com/juce-7-licence
    Privacy Policy: www.juce.com/juce-privacy-policy
 
    Or: You may also use this code under the terms of the GPL v3 (see
@@ -31,27 +31,22 @@
 AppearanceSettings::AppearanceSettings (bool updateAppWhenChanged)
     : settings ("COLOUR_SCHEME")
 {
-    if (! ProjucerApplication::getApp().isRunningCommandLine)
+    CodeDocument doc;
+    CPlusPlusCodeTokeniser tokeniser;
+    CodeEditorComponent editor (doc, &tokeniser);
+
+    CodeEditorComponent::ColourScheme cs (editor.getColourScheme());
+
+    for (int i = cs.types.size(); --i >= 0;)
     {
-        ProjucerLookAndFeel lf;
-
-        CodeDocument doc;
-        CPlusPlusCodeTokeniser tokeniser;
-        CodeEditorComponent editor (doc, &tokeniser);
-
-        CodeEditorComponent::ColourScheme cs (editor.getColourScheme());
-
-        for (int i = cs.types.size(); --i >= 0;)
-        {
-            auto& t = cs.types.getReference(i);
-            getColourValue (t.name) = t.colour.toString();
-        }
-
-        getCodeFontValue() = getDefaultCodeFont().toString();
-
-        if (updateAppWhenChanged)
-            settings.addListener (this);
+        auto& t = cs.types.getReference(i);
+        getColourValue (t.name) = t.colour.toString();
     }
+
+    getCodeFontValue() = getDefaultCodeFont().toString();
+
+    if (updateAppWhenChanged)
+        settings.addListener (this);
 }
 
 File AppearanceSettings::getSchemesFolder()

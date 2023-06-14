@@ -2,15 +2,15 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 6 End-User License
-   Agreement and JUCE Privacy Policy (both effective as of the 16th June 2020).
+   By using JUCE, you agree to the terms of both the JUCE 7 End-User License
+   Agreement and JUCE Privacy Policy.
 
-   End User License Agreement: www.juce.com/juce-6-licence
+   End User License Agreement: www.juce.com/juce-7-licence
    Privacy Policy: www.juce.com/juce-privacy-policy
 
    Or: You may also use this code under the terms of the GPL v3 (see
@@ -34,6 +34,12 @@
 //==============================================================================
 struct ContentComponent  : public Component
 {
+    ContentComponent()
+    {
+        setTitle ("Content");
+        setFocusContainerType (FocusContainerType::focusContainer);
+    }
+
     void resized() override
     {
         if (content != nullptr)
@@ -88,7 +94,8 @@ static std::unique_ptr<Component> createExampleProjectsTab (ContentComponent& co
         content.setContent (std::make_unique<ExampleComponent> (findExampleFile (category, index), cb));
     };
 
-    return std::make_unique<StartPageTreeHolder> (exampleCategories,
+    return std::make_unique<StartPageTreeHolder> ("Examples",
+                                                  exampleCategories,
                                                   examples,
                                                   std::move (selectedCallback),
                                                   StartPageTreeHolder::Open::no);
@@ -144,7 +151,8 @@ static std::unique_ptr<Component> createProjectTemplatesTab (ContentComponent& c
         content.setContent (std::make_unique<TemplateComponent> (templates[(size_t) index], std::move (cb)));
     };
 
-    auto holder = std::make_unique<StartPageTreeHolder> (categories,
+    auto holder = std::make_unique<StartPageTreeHolder> ("Templates",
+                                                         categories,
                                                          templateNames,
                                                          std::move (selectedCallback),
                                                          StartPageTreeHolder::Open::yes);
@@ -165,7 +173,14 @@ struct ProjectTemplatesAndExamples  : public TabbedComponent
           content (c),
           exampleSelectedCallback (std::move (exampleCb))
     {
-        addTab ("New Project", Colours::transparentBlack, createProjectTemplatesTab (content, std::move (newProjectCb)).release(), true);
+        setTitle ("Templates and Examples");
+        setFocusContainerType (FocusContainerType::focusContainer);
+
+        addTab ("New Project",
+                Colours::transparentBlack,
+                createProjectTemplatesTab (content, std::move (newProjectCb)).release(),
+                true);
+
         refreshExamplesTab();
     }
 
@@ -177,8 +192,9 @@ struct ProjectTemplatesAndExamples  : public TabbedComponent
 
         auto exampleTabs = createExampleProjectsTab (content, exampleSelectedCallback);
 
-        addTab ("Open Example", Colours::transparentBlack, exampleTabs == nullptr ? new SetJUCEPathComponent (*this)
-                                                                                  : exampleTabs.release(),
+        addTab ("Open Example",
+                Colours::transparentBlack,
+                exampleTabs == nullptr ? new SetJUCEPathComponent (*this) : exampleTabs.release(),
                 true);
 
         if (wasOpen)

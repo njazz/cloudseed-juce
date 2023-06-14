@@ -2,15 +2,15 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 6 End-User License
-   Agreement and JUCE Privacy Policy (both effective as of the 16th June 2020).
+   By using JUCE, you agree to the terms of both the JUCE 7 End-User License
+   Agreement and JUCE Privacy Policy.
 
-   End User License Agreement: www.juce.com/juce-6-licence
+   End User License Agreement: www.juce.com/juce-7-licence
    Privacy Policy: www.juce.com/juce-privacy-policy
 
    Or: You may also use this code under the terms of the GPL v3 (see
@@ -90,7 +90,6 @@ public:
     bool isCodeBlocks() const override               { return true; }
     bool isMakefile() const override                 { return false; }
     bool isAndroidStudio() const override            { return false; }
-    bool isCLion() const override                    { return false; }
 
     bool isAndroid() const override                  { return false; }
     bool isWindows() const override                  { return os == windowsTarget; }
@@ -98,28 +97,36 @@ public:
     bool isOSX() const override                      { return false; }
     bool isiOS() const override                      { return false; }
 
+    Identifier getExporterIdentifier() const override
+    {
+        return isLinux() ? getValueTreeTypeNameLinux() : getValueTreeTypeNameWindows();
+    }
+
     String getNewLineString() const override         { return isWindows() ? "\r\n" : "\n"; }
 
     bool supportsTargetType (build_tools::ProjectType::Target::Type type) const override
     {
+        using Target = build_tools::ProjectType::Target;
+
         switch (type)
         {
-            case build_tools::ProjectType::Target::StandalonePlugIn:
-            case build_tools::ProjectType::Target::GUIApp:
-            case build_tools::ProjectType::Target::ConsoleApp:
-            case build_tools::ProjectType::Target::StaticLibrary:
-            case build_tools::ProjectType::Target::SharedCodeTarget:
-            case build_tools::ProjectType::Target::AggregateTarget:
-            case build_tools::ProjectType::Target::VSTPlugIn:
-            case build_tools::ProjectType::Target::DynamicLibrary:
+            case Target::StandalonePlugIn:
+            case Target::GUIApp:
+            case Target::ConsoleApp:
+            case Target::StaticLibrary:
+            case Target::SharedCodeTarget:
+            case Target::AggregateTarget:
+            case Target::VSTPlugIn:
+            case Target::DynamicLibrary:
                 return true;
-            case build_tools::ProjectType::Target::AAXPlugIn:
-            case build_tools::ProjectType::Target::RTASPlugIn:
-            case build_tools::ProjectType::Target::UnityPlugIn:
-            case build_tools::ProjectType::Target::VST3PlugIn:
-            case build_tools::ProjectType::Target::AudioUnitPlugIn:
-            case build_tools::ProjectType::Target::AudioUnitv3PlugIn:
-            case build_tools::ProjectType::Target::unspecified:
+            case Target::AAXPlugIn:
+            case Target::UnityPlugIn:
+            case Target::LV2PlugIn:
+            case Target::LV2TurtleProgram:
+            case Target::VST3PlugIn:
+            case Target::AudioUnitPlugIn:
+            case Target::AudioUnitv3PlugIn:
+            case Target::unspecified:
             default:
                 break;
         }
@@ -183,7 +190,7 @@ public:
     }
 
 private:
-    ValueWithDefault targetPlatformValue;
+    ValueTreePropertyWithDefault targetPlatformValue;
 
     String getTargetPlatformString() const    { return targetPlatformValue.get(); }
 
@@ -230,7 +237,7 @@ private:
         String getArchitectureTypeString() const    { return architectureTypeValue.get(); }
 
         //==============================================================================
-        ValueWithDefault architectureTypeValue;
+        ValueTreePropertyWithDefault architectureTypeValue;
     };
 
     BuildConfiguration::Ptr createBuildConfig (const ValueTree& tree) const override
@@ -350,12 +357,14 @@ private:
         auto keys = defines.getAllKeys();
         auto values = defines.getAllValues();
 
+        const auto escapedQuote = isWindows() ? "\\\"" : "\\\\\"";
+
         for (int i = 0; i < defines.size(); ++i)
         {
             auto result = keys[i];
 
             if (values[i].isNotEmpty())
-                result += "=" + values[i];
+                result += "=\"" + values[i].replace ("\"", escapedQuote) + "\"";
 
             defs.add (result);
         }
@@ -370,8 +379,11 @@ private:
         if (auto* codeBlocksConfig = dynamic_cast<const CodeBlocksBuildConfiguration*> (&config))
             flags.add (codeBlocksConfig->getArchitectureTypeString());
 
-        for (auto& recommended : config.getRecommendedCompilerWarningFlags())
-            flags.add (recommended);
+        auto recommendedFlags = config.getRecommendedCompilerWarningFlags();
+
+        for (auto& recommendedFlagsType : { recommendedFlags.common, recommendedFlags.cpp })
+            for (auto& recommended : recommendedFlagsType)
+                flags.add (recommended);
 
         flags.add ("-O" + config.getGCCOptimisationFlag());
 
@@ -382,11 +394,9 @@ private:
             auto cppStandard = config.project.getCppStandardString();
 
             if (cppStandard == "latest")
-                cppStandard = "17";
+                cppStandard = project.getLatestNumberedCppStandardString();
 
-            cppStandard = "-std=" + String (shouldUseGNUExtensions() ? "gnu++" : "c++") + cppStandard;
-
-            flags.add (cppStandard);
+            flags.add ("-std=" + String (shouldUseGNUExtensions() ? "gnu++" : "c++") + cppStandard);
         }
 
         flags.add ("-mstackrealign");
@@ -394,7 +404,7 @@ private:
         if (config.isDebug())
             flags.add ("-g");
 
-        flags.addTokens (replacePreprocessorTokens (config, getExtraCompilerFlagsString()).trim(),
+        flags.addTokens (replacePreprocessorTokens (config, config.getAllCompilerFlagsString()).trim(),
                          " \n", "\"'");
 
         if (config.exporter.isLinux())
@@ -435,7 +445,7 @@ private:
         if (config.isLinkTimeOptimisationEnabled())
             flags.add ("-flto");
 
-        flags.addTokens (replacePreprocessorTokens (config, getExtraLinkerFlagsString()).trim(), " \n", "\"'");
+        flags.addTokens (replacePreprocessorTokens (config, config.getAllLinkerFlagsString()).trim(), " \n", "\"'");
 
         if (config.exporter.isLinux())
         {
@@ -569,7 +579,7 @@ private:
                 for (auto& def : getDefines (config, target))
                 {
                     if (! def.containsChar ('='))
-                            def << '=';
+                        def << '=';
 
                     flags.add ("-D" + def);
                 }
@@ -751,7 +761,7 @@ private:
 
             if (projectItem.shouldBeCompiled())
             {
-                auto extraCompilerFlags = compilerFlagSchemesMap[projectItem.getCompilerFlagSchemeString()].get().toString();
+                auto extraCompilerFlags = getCompilerFlagsForProjectItem (projectItem);
 
                 if (extraCompilerFlags.isNotEmpty())
                 {
@@ -814,8 +824,6 @@ private:
     CodeBlocksOS os;
 
     OwnedArray<CodeBlocksTarget> targets;
-
-    friend class CLionProjectExporter;
 
     JUCE_DECLARE_NON_COPYABLE (CodeBlocksProjectExporter)
 };

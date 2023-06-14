@@ -2,15 +2,15 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 6 End-User License
-   Agreement and JUCE Privacy Policy (both effective as of the 16th June 2020).
+   By using JUCE, you agree to the terms of both the JUCE 7 End-User License
+   Agreement and JUCE Privacy Policy.
 
-   End User License Agreement: www.juce.com/juce-6-licence
+   End User License Agreement: www.juce.com/juce-7-licence
    Privacy Policy: www.juce.com/juce-privacy-policy
 
    Or: You may also use this code under the terms of the GPL v3 (see
@@ -48,9 +48,12 @@ std::unique_ptr<InputStream> VersionInfo::createInputStreamForAsset (const Asset
     URL downloadUrl (asset.url);
     StringPairArray responseHeaders;
 
-    return std::unique_ptr<InputStream> (downloadUrl.createInputStream (false, nullptr, nullptr,
-                                                                        "Accept: application/octet-stream",
-                                                                        5000, &responseHeaders, &statusCode, 1));
+    return std::unique_ptr<InputStream> (downloadUrl.createInputStream (URL::InputStreamOptions (URL::ParameterHandling::inAddress)
+                                                                          .withExtraHeaders ("Accept: application/octet-stream")
+                                                                          .withConnectionTimeoutMs (5000)
+                                                                          .withResponseHeaders (&responseHeaders)
+                                                                          .withStatusCode (&statusCode)
+                                                                          .withNumRedirectsToFollow (1)));
 }
 
 bool VersionInfo::isNewerVersionThanCurrent()
@@ -60,7 +63,7 @@ bool VersionInfo::isNewerVersionThanCurrent()
     auto currentTokens = StringArray::fromTokens (ProjectInfo::versionString, ".", {});
     auto thisTokens    = StringArray::fromTokens (versionString, ".", {});
 
-    jassert (thisTokens.size() == 3 && thisTokens.size() == 3);
+    jassert (thisTokens.size() == 3);
 
     if (currentTokens[0].getIntValue() == thisTokens[0].getIntValue())
     {
@@ -76,7 +79,9 @@ bool VersionInfo::isNewerVersionThanCurrent()
 std::unique_ptr<VersionInfo> VersionInfo::fetch (const String& endpoint)
 {
     URL latestVersionURL ("https://api.github.com/repos/juce-framework/JUCE/releases/" + endpoint);
-    std::unique_ptr<InputStream> inStream (latestVersionURL.createInputStream (false, nullptr, nullptr, {}, 5000));
+
+    std::unique_ptr<InputStream> inStream (latestVersionURL.createInputStream (URL::InputStreamOptions (URL::ParameterHandling::inAddress)
+                                                                                 .withConnectionTimeoutMs (5000)));
 
     if (inStream == nullptr)
         return nullptr;

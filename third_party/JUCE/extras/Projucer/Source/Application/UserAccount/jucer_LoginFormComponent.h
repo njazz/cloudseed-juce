@@ -2,15 +2,15 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 6 End-User License
-   Agreement and JUCE Privacy Policy (both effective as of the 16th June 2020).
+   By using JUCE, you agree to the terms of both the JUCE 7 End-User License
+   Agreement and JUCE Privacy Policy.
 
-   End User License Agreement: www.juce.com/juce-6-licence
+   End User License Agreement: www.juce.com/juce-7-licence
    Privacy Policy: www.juce.com/juce-privacy-policy
 
    Or: You may also use this code under the terms of the GPL v3 (see
@@ -35,16 +35,21 @@ public:
     LoginFormComponent (MainWindow& window)
         : mainWindow (window)
     {
+        setTitle ("Login");
+        setFocusContainerType (FocusContainerType::focusContainer);
+
         addAndMakeVisible (emailBox);
         emailBox.setTextToShowWhenEmpty ("Email", Colours::black.withAlpha (0.2f));
         emailBox.setJustification (Justification::centredLeft);
         emailBox.onReturnKey = [this] { submitDetails(); };
+        emailBox.setTitle ("Email");
 
         addAndMakeVisible (passwordBox);
         passwordBox.setTextToShowWhenEmpty ("Password", Colours::black.withAlpha (0.2f));
         passwordBox.setPasswordCharacter ((juce_wchar) 0x2022);
         passwordBox.setJustification (Justification::centredLeft);
         passwordBox.onReturnKey = [this] { submitDetails(); };
+        passwordBox.setTitle ("Password");
 
         addAndMakeVisible (logInButton);
         logInButton.onClick = [this] { submitDetails(); };
@@ -72,6 +77,7 @@ public:
         dismissButton.setShape (getLookAndFeel().getCrossShape (1.0f), false, true, false);
         addAndMakeVisible (dismissButton);
         dismissButton.onClick = [this] { mainWindow.hideLoginFormOverlay(); };
+        dismissButton.setTitle ("Dismiss");
 
         setWantsKeyboardFocus (true);
         setOpaque (true);
@@ -207,22 +213,21 @@ private:
 
         updateLoginButtonStates (true);
 
-        WeakReference<Component> weakThis (this);
-        auto completionCallback = [this, weakThis] (const String& errorMessage)
+        auto completionCallback = [weakThis = SafePointer<LoginFormComponent> { this }] (const String& errorMessage)
         {
             if (weakThis == nullptr)
                 return;
 
-            updateLoginButtonStates (false);
+            weakThis->updateLoginButtonStates (false);
 
             if (errorMessage.isNotEmpty())
             {
-                showErrorMessage (errorMessage);
+                weakThis->showErrorMessage (errorMessage);
             }
             else
             {
-                hideErrorMessage();
-                mainWindow.hideLoginFormOverlay();
+                weakThis->hideErrorMessage();
+                weakThis->mainWindow.hideLoginFormOverlay();
                 ProjucerApplication::getApp().getCommandManager().commandStatusChanged();
             }
         };

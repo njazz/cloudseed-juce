@@ -47,13 +47,13 @@ add_subdirectory(../../third_party/JUCE "JUCE")
 
 set(PLUGIN_FORMATS VST3 AU)
 
-if (WITH_VST2)
-juce_set_vst2_sdk_path(../../../vst2/)
-set(PLUGIN_FORMATS ${PLUGIN_FORMATS} VST)
-endif()
+#if (WITH_VST2)
+#juce_set_vst2_sdk_path(../../../vst2/)
+#set(PLUGIN_FORMATS ${PLUGIN_FORMATS} VST)
+#endif()
 
 juce_add_plugin(CloudSeedJUCE
-    VERSION 0.0.2                               # Set this if the plugin version is different to the project version
+    VERSION 0.0.3                               # Set this if the plugin version is different to the project version
     ICON_BIG ${CMAKE_CURRENT_SOURCE_DIR}/img/icon.png                              # ICON_* arguments specify a path to an image file to use as an icon for the Standalone
     ICON_SMALL ${CMAKE_CURRENT_SOURCE_DIR}/img/icon.png
     COMPANY_NAME "CloudSeed [JUCE]"                          # Specify the name of the plugin's author

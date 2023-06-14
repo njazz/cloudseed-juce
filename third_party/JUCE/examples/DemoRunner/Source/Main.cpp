@@ -2,15 +2,15 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 6 End-User License
-   Agreement and JUCE Privacy Policy (both effective as of the 16th June 2020).
+   By using JUCE, you agree to the terms of both the JUCE 7 End-User License
+   Agreement and JUCE Privacy Policy.
 
-   End User License Agreement: www.juce.com/juce-6-licence
+   End User License Agreement: www.juce.com/juce-7-licence
    Privacy Policy: www.juce.com/juce-privacy-policy
 
    Or: You may also use this code under the terms of the GPL v3 (see
@@ -29,7 +29,7 @@
 #include "UI/MainComponent.h"
 
 //==============================================================================
-#if JUCE_WINDOWS || JUCE_LINUX || JUCE_MAC
+#if JUCE_MAC || JUCE_WINDOWS || JUCE_LINUX || JUCE_BSD
  // Just add a simple icon to the Window system tray area or Mac menu bar..
  struct DemoTaskbarComponent  : public SystemTrayIconComponent,
                                 private Timer
@@ -96,7 +96,7 @@ public:
     {
         registerAllDemos();
 
-      #if JUCE_MAC || JUCE_WINDOWS || JUCE_LINUX
+      #if JUCE_MAC || JUCE_WINDOWS || JUCE_LINUX || JUCE_BSD
         // (This function call is for one of the demos, which involves launching a child process)
         if (invokeChildProcessDemo (commandLine))
             return;
@@ -111,8 +111,10 @@ public:
     void shutdown() override             { mainWindow = nullptr; }
 
     //==============================================================================
-    void systemRequestedQuit() override                                 { quit(); }
-    void anotherInstanceStarted (const String&) override                {}
+    void systemRequestedQuit() override                   { quit(); }
+    void anotherInstanceStarted (const String&) override  {}
+
+    ApplicationCommandManager& getGlobalCommandManager()  { return commandManager; }
 
 private:
     class MainAppWindow    : public DocumentWindow
@@ -129,7 +131,11 @@ private:
 
            #if JUCE_IOS || JUCE_ANDROID
             setFullScreen (true);
-            Desktop::getInstance().setOrientationsEnabled (Desktop::rotatedClockwise | Desktop::rotatedAntiClockwise);
+
+            auto& desktop = Desktop::getInstance();
+
+            desktop.setOrientationsEnabled (Desktop::allOrientations);
+            desktop.setKioskModeComponent (this);
            #else
             setBounds ((int) (0.1f * (float) getParentWidth()),
                        (int) (0.1f * (float) getParentHeight()),
@@ -140,12 +146,19 @@ private:
             setContentOwned (new MainComponent(), false);
             setVisible (true);
 
-           #if JUCE_WINDOWS || JUCE_LINUX || JUCE_MAC
+           #if JUCE_MAC || JUCE_WINDOWS || JUCE_LINUX || JUCE_BSD
             taskbarIcon.reset (new DemoTaskbarComponent());
            #endif
         }
 
         void closeButtonPressed() override    { JUCEApplication::getInstance()->systemRequestedQuit(); }
+
+       #if JUCE_IOS || JUCE_ANDROID
+        void parentSizeChanged() override
+        {
+            getMainComponent().resized();
+        }
+       #endif
 
         //==============================================================================
         MainComponent& getMainComponent()    { return *dynamic_cast<MainComponent*> (getContentComponent()); }
@@ -157,7 +170,13 @@ private:
     };
 
     std::unique_ptr<MainAppWindow> mainWindow;
+    ApplicationCommandManager commandManager;
 };
+
+ApplicationCommandManager& getGlobalCommandManager()
+{
+    return dynamic_cast<DemoRunnerApplication*> (JUCEApplication::getInstance())->getGlobalCommandManager();
+}
 
 //==============================================================================
 // This macro generates the main() routine that launches the app.

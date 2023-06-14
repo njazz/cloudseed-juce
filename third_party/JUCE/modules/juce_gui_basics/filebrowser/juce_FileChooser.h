@@ -2,15 +2,15 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 6 End-User License
-   Agreement and JUCE Privacy Policy (both effective as of the 16th June 2020).
+   By using JUCE, you agree to the terms of both the JUCE 7 End-User License
+   Agreement and JUCE Privacy Policy.
 
-   End User License Agreement: www.juce.com/juce-6-licence
+   End User License Agreement: www.juce.com/juce-7-licence
    Privacy Policy: www.juce.com/juce-privacy-policy
 
    Or: You may also use this code under the terms of the GPL v3 (see
@@ -30,25 +30,23 @@ namespace juce
 /**
     Creates a dialog box to choose a file or directory to load or save.
 
-    To use a FileChooser:
-    - create one (as a local stack variable is the neatest way)
-    - call one of its browseFor.. methods
-    - if this returns true, the user has selected a file, so you can retrieve it
-      with the getResult() method.
+    @code
+    std::unique_ptr<FileChooser> myChooser;
 
-    e.g. @code
     void loadMooseFile()
     {
-        FileChooser myChooser ("Please select the moose you want to load...",
-                               File::getSpecialLocation (File::userHomeDirectory),
-                               "*.moose");
+        myChooser = std::make_unique<FileChooser> ("Please select the moose you want to load...",
+                                                   File::getSpecialLocation (File::userHomeDirectory),
+                                                   "*.moose");
 
-        if (myChooser.browseForFileToOpen())
+        auto folderChooserFlags = FileBrowserComponent::openMode | FileBrowserComponent::canSelectDirectories;
+
+        myChooser->launchAsync (folderChooserFlags, [this] (const FileChooser& chooser)
         {
-            File mooseFile (myChooser.getResult());
+            File mooseFile (chooser.getResult());
 
             loadMoose (mooseFile);
-        }
+        });
     }
     @endcode
 
@@ -125,6 +123,7 @@ public:
     ~FileChooser();
 
     //==============================================================================
+   #if JUCE_MODAL_LOOPS_PERMITTED
     /** Shows a dialog box to choose a file to open.
 
         This will display the dialog box modally, using an "open file" mode, so that
@@ -191,6 +190,7 @@ public:
         @see FileBrowserComponent::FileChooserFlags
     */
     bool showDialog (int flags, FilePreviewComponent* previewComponent);
+   #endif
 
     /** Use this method to launch the file browser window asynchronously.
 
@@ -198,11 +198,8 @@ public:
         structure and will launch it modally, returning immediately.
 
         You must specify a callback which is called when the file browser is
-        canceled or a file is selected. To abort the file selection, simply
+        cancelled or a file is selected. To abort the file selection, simply
         delete the FileChooser object.
-
-        You can use the ModalCallbackFunction::create method to wrap a lambda
-        into a modal Callback object.
 
         You must ensure that the lifetime of the callback object is longer than
         the lifetime of the file-chooser.
@@ -296,6 +293,19 @@ public:
     */
     static bool isPlatformDialogAvailable();
 
+    /** Associate a particular file-extension to a mime-type
+
+        On Android, JUCE needs to convert common file extensions to mime-types when using
+        wildcard filters in native file chooser dialog boxes. JUCE has an extensive conversion
+        table to convert between the most common file-types and mime-types transparently, but
+        some more obscure file-types may be missing. Use this method to register your own
+        mime-type to file extension conversions. Please contact the JUCE team if you think
+        that a common mime-type/file-extension entry is missing in JUCE's internal tables.
+        Does nothing on other platforms.
+    */
+    static void registerCustomMimeTypeForFileExtension (const String& mimeType,
+                                                        const String& fileExtension);
+
     //==============================================================================
    #ifndef DOXYGEN
     class Native;
@@ -323,12 +333,11 @@ private:
         virtual void runModally() = 0;
     };
 
-    std::unique_ptr<Pimpl> pimpl;
+    std::shared_ptr<Pimpl> pimpl;
 
     //==============================================================================
-    Pimpl* createPimpl (int, FilePreviewComponent*);
-    static Pimpl* showPlatformDialog (FileChooser&, int,
-                                      FilePreviewComponent*);
+    std::shared_ptr<Pimpl> createPimpl (int, FilePreviewComponent*);
+    static std::shared_ptr<Pimpl> showPlatformDialog (FileChooser&, int, FilePreviewComponent*);
 
     class NonNative;
     friend class NonNative;

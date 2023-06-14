@@ -2,7 +2,7 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
@@ -59,7 +59,7 @@ void JUCE_CALLTYPE Process::terminate()
 }
 
 
-#if JUCE_MAC || JUCE_LINUX
+#if JUCE_MAC || JUCE_LINUX || JUCE_BSD
 bool Process::setMaxNumberOfFileHandles (int newMaxNumber) noexcept
 {
     rlimit lim;
@@ -99,8 +99,16 @@ static MaxNumFileHandlesInitialiser maxNumFileHandlesInitialiser;
 #endif
 
 //==============================================================================
-JUCE_DECLARE_DEPRECATED_STATIC (const juce_wchar File::separator = '/';)
-JUCE_DECLARE_DEPRECATED_STATIC (const StringRef File::separatorString ("/");)
+#if JUCE_ALLOW_STATIC_NULL_VARIABLES
+
+JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wdeprecated-declarations")
+
+const juce_wchar File::separator = '/';
+const StringRef File::separatorString ("/");
+
+JUCE_END_IGNORE_WARNINGS_GCC_LIKE
+
+#endif
 
 juce_wchar File::getSeparatorChar()    { return '/'; }
 StringRef File::getSeparatorString()   { return "/"; }
@@ -130,16 +138,19 @@ bool File::setAsCurrentWorkingDirectory() const
     return chdir (getFullPathName().toUTF8()) == 0;
 }
 
-#if JUCE_ANDROID
- using juce_sigactionflags_type = unsigned long;
-#else
- using juce_sigactionflags_type = int;
-#endif
-
 //==============================================================================
 // The unix siginterrupt function is deprecated - this does the same job.
-int juce_siginterrupt (int sig, int flag)
+int juce_siginterrupt ([[maybe_unused]] int sig, [[maybe_unused]] int flag)
 {
+   #if JUCE_WASM
+    return 0;
+   #else
+    #if JUCE_ANDROID
+     using juce_sigactionflags_type = unsigned long;
+    #else
+     using juce_sigactionflags_type = int;
+    #endif
+
     struct ::sigaction act;
     (void) ::sigaction (sig, nullptr, &act);
 
@@ -149,12 +160,13 @@ int juce_siginterrupt (int sig, int flag)
         act.sa_flags |= static_cast<juce_sigactionflags_type> (SA_RESTART);
 
     return ::sigaction (sig, &act, nullptr);
+   #endif
 }
 
 //==============================================================================
 namespace
 {
-   #if JUCE_LINUX || (JUCE_IOS && ! __DARWIN_ONLY_64_BIT_INO_T) // (this iOS stuff is to avoid a simulator bug)
+   #if JUCE_LINUX || (JUCE_IOS && (! TARGET_OS_MACCATALYST) && (! __DARWIN_ONLY_64_BIT_INO_T)) // (this iOS stuff is to avoid a simulator bug)
     using juce_statStruct = struct stat64;
     #define JUCE_STAT  stat64
    #else
@@ -168,6 +180,7 @@ namespace
                  && JUCE_STAT (fileName.toUTF8(), &info) == 0;
     }
 
+   #if ! JUCE_WASM
     // if this file doesn't exist, find a parent of it that does..
     bool juce_doStatFS (File f, struct statfs& result)
     {
@@ -205,6 +218,7 @@ namespace
         if (isReadOnly != nullptr)
             *isReadOnly = access (path.toUTF8(), W_OK) != 0;
     }
+   #endif
 
     Result getResultForErrno()
     {
@@ -253,7 +267,7 @@ uint64 File::getFileIdentifier() const
 
 static bool hasEffectiveRootFilePermissions()
 {
-   #if JUCE_LINUX
+   #if JUCE_LINUX || JUCE_BSD
     return geteuid() == 0;
    #else
     return false;
@@ -271,6 +285,12 @@ bool File::hasWriteAccess() const
         return getParentDirectory().hasWriteAccess();
 
     return false;
+}
+
+bool File::hasReadAccess() const
+{
+    return fullPath.isNotEmpty()
+           && access (fullPath.toUTF8(), R_OK) == 0;
 }
 
 static bool setFileModeFlags (const String& fullPath, mode_t flags, bool shouldSet) noexcept
@@ -329,6 +349,7 @@ void File::getFileTimesInternal (int64& modificationTime, int64& accessTime, int
 
 bool File::setFileTimesInternal (int64 modificationTime, int64 accessTime, int64 /*creationTime*/) const
 {
+   #if ! JUCE_WASM
     juce_statStruct info;
 
     if ((modificationTime != 0 || accessTime != 0) && juce_stat (fullPath, info))
@@ -360,6 +381,7 @@ bool File::setFileTimesInternal (int64 modificationTime, int64 accessTime, int64
         return utime (fullPath.toUTF8(), &times) == 0;
        #endif
     }
+   #endif
 
     return false;
 }
@@ -533,6 +555,7 @@ String SystemStats::getEnvironmentVariable (const String& name, const String& de
 }
 
 //==============================================================================
+#if ! JUCE_WASM
 void MemoryMappedFile::openInternal (const File& file, AccessMode mode, bool exclusive)
 {
     jassert (mode == readOnly || mode == readWrite);
@@ -566,6 +589,9 @@ void MemoryMappedFile::openInternal (const File& file, AccessMode mode, bool exc
         {
             range = Range<int64>();
         }
+
+        close (fileHandle);
+        fileHandle = 0;
     }
 }
 
@@ -659,13 +685,14 @@ int File::getVolumeSerialNumber() const
     return 0;
 }
 
+#endif
+
 //==============================================================================
 #if ! JUCE_IOS
 void juce_runSystemCommand (const String&);
 void juce_runSystemCommand (const String& command)
 {
-    int result = system (command.toUTF8());
-    ignoreUnused (result);
+    [[maybe_unused]] int result = system (command.toUTF8());
 }
 
 String juce_getOutputFromCommand (const String&);
@@ -822,103 +849,131 @@ void InterProcessLock::exit()
         pimpl.reset();
 }
 
-//==============================================================================
-void JUCE_API juce_threadEntryPoint (void*);
-
-#if JUCE_ANDROID
-extern JavaVM* androidJNIJavaVM;
-#endif
-
-static void* threadEntryProc (void* userData)
+class PosixThreadAttribute
 {
-    auto* myself = static_cast<Thread*> (userData);
-
-    JUCE_AUTORELEASEPOOL
+public:
+    explicit PosixThreadAttribute (size_t stackSize)
     {
-        juce_threadEntryPoint (myself);
+        if (valid)
+            pthread_attr_setstacksize (&attr, stackSize);
     }
 
-   #if JUCE_ANDROID
-    if (androidJNIJavaVM != nullptr)
+    ~PosixThreadAttribute()
     {
-        void* env = nullptr;
-        androidJNIJavaVM->GetEnv(&env, JNI_VERSION_1_2);
-
-        // only detach if we have actually been attached
-        if (env != nullptr)
-            androidJNIJavaVM->DetachCurrentThread();
+        if (valid)
+            pthread_attr_destroy (&attr);
     }
-   #endif
 
-    return nullptr;
-}
+    auto* get() { return valid ? &attr : nullptr; }
 
-#if JUCE_ANDROID && JUCE_MODULE_AVAILABLE_juce_audio_devices && \
-   ((JUCE_USE_ANDROID_OPENSLES || (! defined(JUCE_USE_ANDROID_OPENSLES) && JUCE_ANDROID_API_VERSION > 8)) \
- || (JUCE_USE_ANDROID_OBOE || (! defined(JUCE_USE_ANDROID_OBOE) && JUCE_ANDROID_API_VERSION > 15)))
-
-  #define JUCE_ANDROID_REALTIME_THREAD_AVAILABLE 1
-#endif
-
-#if JUCE_ANDROID_REALTIME_THREAD_AVAILABLE
-extern pthread_t juce_createRealtimeAudioThread (void* (*entry) (void*), void* userPtr);
-#endif
-
-void Thread::launchThread()
-{
-   #if JUCE_ANDROID
-    if (isAndroidRealtimeThread)
-    {
-       #if JUCE_ANDROID_REALTIME_THREAD_AVAILABLE
-        threadHandle = (void*) juce_createRealtimeAudioThread (threadEntryProc, this);
-        threadId = (ThreadID) threadHandle.get();
-
-        return;
-       #else
-        jassertfalse;
-       #endif
-    }
-   #endif
-
-    threadHandle = {};
-    pthread_t handle = {};
+private:
     pthread_attr_t attr;
-    pthread_attr_t* attrPtr = nullptr;
+    bool valid { pthread_attr_init (&attr) == 0 };
+};
 
-    if (pthread_attr_init (&attr) == 0)
+class PosixSchedulerPriority
+{
+public:
+    static PosixSchedulerPriority findCurrentSchedulerAndPriority()
     {
-        attrPtr = &attr;
-        pthread_attr_setstacksize (attrPtr, threadStackSize);
+        int scheduler{};
+        sched_param param{};
+        pthread_getschedparam (pthread_self(), &scheduler, &param);
+        return { scheduler, param.sched_priority };
     }
 
-
-    if (pthread_create (&handle, attrPtr, threadEntryProc, this) == 0)
+    static PosixSchedulerPriority getNativeSchedulerAndPriority (const Optional<Thread::RealtimeOptions>& rt,
+                                                                 [[maybe_unused]] Thread::Priority prio)
     {
-        pthread_detach (handle);
-        threadHandle = (void*) handle;
-        threadId = (ThreadID) threadHandle.get();
+        const auto isRealtime = rt.hasValue();
+
+        const auto priority = [&]
+        {
+            if (isRealtime)
+            {
+                const auto min = jmax (0, sched_get_priority_min (SCHED_RR));
+                const auto max = jmax (1, sched_get_priority_max (SCHED_RR));
+
+                return jmap (rt->priority, 0, 10, min, max);
+            }
+
+            // We only use this helper if we're on an old macos/ios platform that might
+            // still respect legacy pthread priorities for SCHED_OTHER.
+            #if JUCE_MAC || JUCE_IOS
+             const auto min = jmax (0, sched_get_priority_min (SCHED_OTHER));
+             const auto max = jmax (0, sched_get_priority_max (SCHED_OTHER));
+
+             const auto p = [prio]
+             {
+                 switch (prio)
+                 {
+                     case Thread::Priority::highest:    return 4;
+                     case Thread::Priority::high:       return 3;
+                     case Thread::Priority::normal:     return 2;
+                     case Thread::Priority::low:        return 1;
+                     case Thread::Priority::background: return 0;
+                 }
+
+                 return 3;
+             }();
+
+             if (min != 0 && max != 0)
+                 return jmap (p, 0, 4, min, max);
+            #endif
+
+            return 0;
+        }();
+
+        #if JUCE_MAC || JUCE_IOS
+         const auto scheduler = SCHED_OTHER;
+        #elif JUCE_LINUX || JUCE_BSD
+         const auto backgroundSched = prio == Thread::Priority::background ? SCHED_IDLE
+                                                                           : SCHED_OTHER;
+         const auto scheduler = isRealtime ? SCHED_RR : backgroundSched;
+        #else
+         const auto scheduler = 0;
+        #endif
+
+         return { scheduler, priority };
     }
 
-    if (attrPtr != nullptr)
-        pthread_attr_destroy (attrPtr);
+    void apply ([[maybe_unused]] PosixThreadAttribute& attr) const
+    {
+        #if JUCE_LINUX || JUCE_BSD
+         const struct sched_param param { getPriority() };
+
+         pthread_attr_setinheritsched (attr.get(), PTHREAD_EXPLICIT_SCHED);
+         pthread_attr_setschedpolicy (attr.get(), getScheduler());
+         pthread_attr_setschedparam (attr.get(), &param);
+        #endif
+    }
+
+    constexpr int getScheduler() const { return scheduler; }
+    constexpr int  getPriority() const { return priority; }
+
+private:
+    constexpr PosixSchedulerPriority (int schedulerIn, int priorityIn)
+        : scheduler (schedulerIn), priority (priorityIn) {}
+
+    int scheduler;
+    int priority;
+};
+
+static void* makeThreadHandle (PosixThreadAttribute& attr, Thread* userData, void* (*threadEntryProc) (void*))
+{
+    pthread_t handle = {};
+
+    if (pthread_create (&handle, attr.get(), threadEntryProc, userData) != 0)
+        return nullptr;
+
+    pthread_detach (handle);
+    return (void*) handle;
 }
 
 void Thread::closeThreadHandle()
 {
     threadId = {};
-    threadHandle = {};
-}
-
-void Thread::killThread()
-{
-    if (threadHandle.get() != nullptr)
-    {
-       #if JUCE_ANDROID
-        jassertfalse; // pthread_cancel not available!
-       #else
-        pthread_cancel ((pthread_t) threadHandle.get());
-       #endif
-    }
+    threadHandle = nullptr;
 }
 
 void JUCE_CALLTYPE Thread::setCurrentThreadName (const String& name)
@@ -928,35 +983,15 @@ void JUCE_CALLTYPE Thread::setCurrentThreadName (const String& name)
     {
         [[NSThread currentThread] setName: juceStringToNS (name)];
     }
-   #elif JUCE_LINUX || JUCE_ANDROID
-    #if ((JUCE_LINUX && (__GLIBC__ * 1000 + __GLIBC_MINOR__) >= 2012) \
-          || JUCE_ANDROID && __ANDROID_API__ >= 9)
+   #elif JUCE_LINUX || JUCE_BSD || JUCE_ANDROID
+    #if (JUCE_BSD \
+          || (JUCE_LINUX && (__GLIBC__ * 1000 + __GLIBC_MINOR__) >= 2012) \
+          || (JUCE_ANDROID && __ANDROID_API__ >= 9))
      pthread_setname_np (pthread_self(), name.toRawUTF8());
     #else
      prctl (PR_SET_NAME, name.toRawUTF8(), 0, 0, 0);
     #endif
    #endif
-}
-
-bool Thread::setThreadPriority (void* handle, int priority)
-{
-    struct sched_param param;
-    int policy;
-    priority = jlimit (0, 10, priority);
-
-    if (handle == nullptr)
-        handle = (void*) pthread_self();
-
-    if (pthread_getschedparam ((pthread_t) handle, &policy, &param) != 0)
-        return false;
-
-    policy = priority == 0 ? SCHED_OTHER : SCHED_RR;
-
-    const int minPriority = sched_get_priority_min (policy);
-    const int maxPriority = sched_get_priority_max (policy);
-
-    param.sched_priority = ((maxPriority - minPriority) * priority) / 10 + minPriority;
-    return pthread_setschedparam ((pthread_t) handle, policy, &param) == 0;
 }
 
 Thread::ThreadID JUCE_CALLTYPE Thread::getCurrentThreadId()
@@ -978,7 +1013,7 @@ void JUCE_CALLTYPE Thread::yield()
  #define SUPPORT_AFFINITIES 1
 #endif
 
-void JUCE_CALLTYPE Thread::setCurrentThreadAffinityMask (uint32 affinityMask)
+void JUCE_CALLTYPE Thread::setCurrentThreadAffinityMask ([[maybe_unused]] uint32 affinityMask)
 {
    #if SUPPORT_AFFINITIES
     cpu_set_t affinity;
@@ -988,7 +1023,7 @@ void JUCE_CALLTYPE Thread::setCurrentThreadAffinityMask (uint32 affinityMask)
         if ((affinityMask & (uint32) (1 << i)) != 0)
             CPU_SET ((size_t) i, &affinity);
 
-   #if (! JUCE_ANDROID) && ((! JUCE_LINUX) || ((__GLIBC__ * 1000 + __GLIBC_MINOR__) >= 2004))
+   #if (! JUCE_ANDROID) && ((! (JUCE_LINUX || JUCE_BSD)) || ((__GLIBC__ * 1000 + __GLIBC_MINOR__) >= 2004))
     pthread_setaffinity_np (pthread_self(), sizeof (cpu_set_t), &affinity);
    #elif JUCE_ANDROID
     sched_setaffinity (gettid(), sizeof (cpu_set_t), &affinity);
@@ -1005,11 +1040,11 @@ void JUCE_CALLTYPE Thread::setCurrentThreadAffinityMask (uint32 affinityMask)
     // affinities aren't supported because either the appropriate header files weren't found,
     // or the SUPPORT_AFFINITIES macro was turned off
     jassertfalse;
-    ignoreUnused (affinityMask);
    #endif
 }
 
 //==============================================================================
+#if ! JUCE_WASM
 bool DynamicLibrary::open (const String& name)
 {
     close();
@@ -1030,7 +1065,6 @@ void* DynamicLibrary::getFunction (const String& functionName) noexcept
 {
     return handle != nullptr ? dlsym (handle, functionName.toUTF8()) : nullptr;
 }
-
 
 //==============================================================================
 #if JUCE_LINUX || JUCE_ANDROID
@@ -1124,7 +1158,7 @@ public:
         if (childPID == 0)
             return false;
 
-        int childState;
+        int childState = 0;
         auto pid = waitpid (childPID, &childState, WNOHANG);
 
         if (pid == 0)
@@ -1221,238 +1255,6 @@ bool ChildProcess::start (const StringArray& args, int streamFlags)
     return activeProcess != nullptr;
 }
 
-//==============================================================================
-struct HighResolutionTimer::Pimpl
-{
-    Pimpl (HighResolutionTimer& t)  : owner (t)
-    {
-        pthread_condattr_t attr;
-        pthread_condattr_init (&attr);
-
-       #if JUCE_LINUX || (JUCE_ANDROID && defined(__ANDROID_API__) && __ANDROID_API__ >= 21)
-        pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
-       #endif
-
-        pthread_cond_init (&stopCond, &attr);
-        pthread_condattr_destroy (&attr);
-        pthread_mutex_init (&timerMutex, nullptr);
-    }
-
-    ~Pimpl()
-    {
-        jassert (! isRunning);
-        stop();
-    }
-
-    void start (int newPeriod)
-    {
-        if (periodMs != newPeriod)
-        {
-            if (thread != pthread_self())
-            {
-                stop();
-
-                periodMs = newPeriod;
-                destroyThread = false;
-                isRunning = true;
-
-                if (pthread_create (&thread, nullptr, timerThread, this) == 0)
-                    setThreadToRealtime (thread, (uint64) newPeriod);
-                else
-                    jassertfalse;
-            }
-            else
-            {
-                periodMs = newPeriod;
-                isRunning = true;
-                destroyThread = false;
-            }
-        }
-    }
-
-    void stop()
-    {
-        isRunning = false;
-
-        if (thread == pthread_t())
-            return;
-
-        if (thread == pthread_self())
-        {
-            periodMs = 3600000;
-            return;
-        }
-
-        isRunning = false;
-        destroyThread = true;
-
-        pthread_mutex_lock (&timerMutex);
-        pthread_cond_signal (&stopCond);
-        pthread_mutex_unlock (&timerMutex);
-
-        pthread_join (thread, nullptr);
-        thread = {};
-    }
-
-    HighResolutionTimer& owner;
-    std::atomic<int> periodMs { 0 };
-
-private:
-    pthread_t thread = {};
-    pthread_cond_t stopCond;
-    pthread_mutex_t timerMutex;
-    std::atomic<bool> destroyThread { false }, isRunning { false };
-
-    static void* timerThread (void* param)
-    {
-       #if ! JUCE_ANDROID
-        int dummy;
-        pthread_setcancelstate (PTHREAD_CANCEL_ENABLE, &dummy);
-       #endif
-
-        reinterpret_cast<Pimpl*> (param)->timerThread();
-        return nullptr;
-    }
-
-    void timerThread()
-    {
-        auto lastPeriod = periodMs.load();
-        Clock clock (lastPeriod);
-
-        pthread_mutex_lock (&timerMutex);
-
-        while (! destroyThread)
-        {
-            clock.next();
-            while (! destroyThread && clock.wait (stopCond, timerMutex));
-
-            if (destroyThread)
-                break;
-
-            if (isRunning)
-                owner.hiResTimerCallback();
-
-            auto newPeriod = periodMs.load();
-
-            if (lastPeriod != newPeriod)
-            {
-                lastPeriod = newPeriod;
-                clock = Clock (lastPeriod);
-            }
-        }
-
-        periodMs = 0;
-        pthread_mutex_unlock (&timerMutex);
-        pthread_exit (nullptr);
-    }
-
-    struct Clock
-    {
-       #if JUCE_MAC || JUCE_IOS
-        Clock (double millis) noexcept
-        {
-            (void) mach_timebase_info (&timebase);
-            delta = (((uint64_t) (millis * 1000000.0)) * timebase.denom) / timebase.numer;
-            time = mach_absolute_time();
-        }
-
-        bool wait (pthread_cond_t& cond, pthread_mutex_t& mutex) noexcept
-        {
-            struct timespec left;
-
-            if (! hasExpired (left))
-                return (pthread_cond_timedwait_relative_np (&cond, &mutex, &left) != ETIMEDOUT);
-
-            return false;
-        }
-
-        uint64_t time, delta;
-        mach_timebase_info_data_t timebase;
-
-        bool hasExpired (struct timespec& time_left) noexcept
-        {
-            uint64_t now = mach_absolute_time();
-
-            if (now < time)
-            {
-                uint64_t left = time - now;
-                uint64_t nanos = (left * static_cast<uint64_t> (timebase.numer)) / static_cast<uint64_t> (timebase.denom);
-                time_left.tv_sec = static_cast<__darwin_time_t> (nanos / 1000000000ULL);
-                time_left.tv_nsec = static_cast<long> (nanos - (static_cast<uint64_t> (time_left.tv_sec) * 1000000000ULL));
-
-                return false;
-            }
-
-            return true;
-        }
-      #else
-        Clock (double millis) noexcept  : delta ((uint64) (millis * 1000000))
-        {
-            struct timespec t;
-            clock_gettime (CLOCK_MONOTONIC, &t);
-            time = (uint64) (1000000000 * (int64) t.tv_sec + (int64) t.tv_nsec);
-        }
-
-        bool wait (pthread_cond_t& cond, pthread_mutex_t& mutex) noexcept
-        {
-            struct timespec absExpire;
-
-            if (! hasExpired (absExpire))
-                return (pthread_cond_timedwait (&cond, &mutex, &absExpire) != ETIMEDOUT);
-
-            return false;
-        }
-
-        uint64 time, delta;
-
-        bool hasExpired (struct timespec& expiryTime) noexcept
-        {
-            struct timespec t;
-            clock_gettime (CLOCK_MONOTONIC, &t);
-            auto now = (uint64) (1000000000 * (int64) t.tv_sec + (int64) t.tv_nsec);
-
-            if (now < time)
-            {
-                expiryTime.tv_sec  = (time_t) (time / 1000000000);
-                expiryTime.tv_nsec = (long)   (time % 1000000000);
-
-                return false;
-            }
-
-            return true;
-        }
-       #endif
-
-        void next() noexcept
-        {
-            time += delta;
-        }
-    };
-
-    static bool setThreadToRealtime (pthread_t thread, uint64 periodMs)
-    {
-       #if JUCE_MAC || JUCE_IOS
-        thread_time_constraint_policy_data_t policy;
-        policy.period      = (uint32_t) (periodMs * 1000000);
-        policy.computation = 50000;
-        policy.constraint  = policy.period;
-        policy.preemptible = true;
-
-        return thread_policy_set (pthread_mach_thread_np (thread),
-                                  THREAD_TIME_CONSTRAINT_POLICY,
-                                  (thread_policy_t) &policy,
-                                  THREAD_TIME_CONSTRAINT_POLICY_COUNT) == KERN_SUCCESS;
-
-       #else
-        ignoreUnused (periodMs);
-        struct sched_param param;
-        param.sched_priority = sched_get_priority_max (SCHED_RR);
-        return pthread_setschedparam (thread, SCHED_RR, &param) == 0;
-
-       #endif
-    }
-
-    JUCE_DECLARE_NON_COPYABLE (Pimpl)
-};
+#endif
 
 } // namespace juce

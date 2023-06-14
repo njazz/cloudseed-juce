@@ -2,7 +2,7 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
@@ -195,15 +195,7 @@ DECLARE_JNI_CLASS (StringBuffer, "java/lang/StringBuffer")
  METHOD (isExhausted, "isExhausted", "()Z") \
  METHOD (setPosition, "setPosition", "(J)Z") \
 
-DECLARE_JNI_CLASS_WITH_BYTECODE (HTTPStream, "com/rmsl/juce/JuceHTTPStream", 16, javaJuceHttpStream, sizeof(javaJuceHttpStream))
-#undef JNI_CLASS_MEMBERS
-
-//==============================================================================
-#define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
- METHOD (close,     "close",     "()V") \
- METHOD (read,      "read",      "([BII)I") \
-
-DECLARE_JNI_CLASS (AndroidInputStream, "java/io/InputStream")
+DECLARE_JNI_CLASS_WITH_BYTECODE (HTTPStream, "com/rmsl/juce/JuceHTTPStream", 16, javaJuceHttpStream)
 #undef JNI_CLASS_MEMBERS
 
 //==============================================================================
@@ -246,6 +238,7 @@ static LocalRef<jobject> getMulticastLock()
     return multicastLock;
 }
 
+JUCE_API void JUCE_CALLTYPE acquireMulticastLock();
 JUCE_API void JUCE_CALLTYPE acquireMulticastLock()
 {
     auto multicastLock = getMulticastLock();
@@ -254,6 +247,7 @@ JUCE_API void JUCE_CALLTYPE acquireMulticastLock()
         getEnv()->CallVoidMethod (multicastLock.get(), AndroidMulticastLock.acquire);
 }
 
+JUCE_API void JUCE_CALLTYPE releaseMulticastLock();
 JUCE_API void JUCE_CALLTYPE releaseMulticastLock()
 {
     auto multicastLock = getMulticastLock();
@@ -324,12 +318,14 @@ class WebInputStream::Pimpl
 public:
     enum { contentStreamCacheSize = 1024 };
 
-    Pimpl (WebInputStream&, const URL& urlToCopy, bool shouldBePost)
+    Pimpl (WebInputStream&, const URL& urlToCopy, bool addParametersToBody)
         : url (urlToCopy),
           isContentURL (urlToCopy.getScheme() == "content"),
-          isPost (shouldBePost),
-          httpRequest (isPost ? "POST" : "GET")
-    {}
+          addParametersToRequestBody (addParametersToBody),
+          hasBodyDataToSend (addParametersToRequestBody || url.hasBodyDataToSend()),
+          httpRequest (hasBodyDataToSend ? "POST" : "GET")
+    {
+    }
 
     ~Pimpl()
     {
@@ -361,7 +357,8 @@ public:
 
         if (isContentURL)
         {
-            auto inputStream = AndroidContentUriResolver::getStreamForContentUri (url, true);
+            GlobalRef urlRef { urlToUri (url) };
+            auto inputStream = AndroidStreamHelpers::createStream (urlRef, AndroidStreamHelpers::StreamKind::input);
 
             if (inputStream != nullptr)
             {
@@ -373,18 +370,22 @@ public:
         }
         else
         {
-            String address = url.toString (! isPost);
+            String address = url.toString (! addParametersToRequestBody);
 
             if (! address.contains ("://"))
                 address = "http://" + address;
 
             MemoryBlock postData;
-            if (isPost)
-                WebInputStream::createHeadersAndPostData (url, headers, postData);
+
+            if (hasBodyDataToSend)
+                WebInputStream::createHeadersAndPostData (url,
+                                                          headers,
+                                                          postData,
+                                                          addParametersToRequestBody);
 
             jbyteArray postDataArray = nullptr;
 
-            if (postData.getSize() > 0)
+            if (! postData.isEmpty())
             {
                 postDataArray = env->NewByteArray (static_cast<jsize> (postData.getSize()));
                 env->SetByteArrayRegion (postDataArray, 0, static_cast<jsize> (postData.getSize()), (const jbyte*) postData.getData());
@@ -406,7 +407,7 @@ public:
                     stream = GlobalRef (LocalRef<jobject> (env->CallStaticObjectMethod (HTTPStream,
                                                                                         HTTPStream.createHTTPStream,
                                                                                         javaString (address).get(),
-                                                                                        (jboolean) isPost,
+                                                                                        (jboolean) addParametersToRequestBody,
                                                                                         postDataArray,
                                                                                         javaString (headers).get(),
                                                                                         (jint) timeOutMs,
@@ -535,7 +536,8 @@ public:
 
 private:
     const URL url;
-    bool isContentURL, isPost, eofStreamReached = false;
+    const bool isContentURL, addParametersToRequestBody, hasBodyDataToSend;
+    bool eofStreamReached = false;
     int numRedirectsToFollow = 5, timeOutMs = 0;
     String httpRequest, headers;
     StringPairArray responseHeaders;
@@ -547,9 +549,9 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Pimpl)
 };
 
-std::unique_ptr<URL::DownloadTask> URL::downloadToFile (const File& targetLocation, String extraHeaders, DownloadTask::Listener* listener, bool shouldUsePost)
+std::unique_ptr<URL::DownloadTask> URL::downloadToFile (const File& targetLocation, const DownloadTaskOptions& options)
 {
-    return URL::DownloadTask::createFallbackDownloader (*this, targetLocation, extraHeaders, listener, shouldUsePost);
+    return URL::DownloadTask::createFallbackDownloader (*this, targetLocation, options);
 }
 
 //==============================================================================

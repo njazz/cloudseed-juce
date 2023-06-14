@@ -2,7 +2,7 @@
   ==============================================================================
 
    This file is part of the JUCE examples.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    The code included in this file is provided under the terms of the ISC license
    http://www.isc.org/downloads/software-support-policy/isc-license. Permission
@@ -31,7 +31,7 @@
 
  dependencies:     juce_core, juce_data_structures, juce_events, juce_graphics,
                    juce_gui_basics, juce_gui_extra
- exporters:        xcode_mac, vs2019, linux_make, androidstudio, xcode_iphone
+ exporters:        xcode_mac, vs2022, linux_make, androidstudio, xcode_iphone
 
  moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
@@ -157,12 +157,18 @@ public:
         setApplicationCommandManagerToWatch (&commandManager);
         commandManager.registerAllCommandsForTarget (this);
 
+        // this ensures that commands invoked on the DemoRunner application are correctly
+        // forwarded to this demo
+        commandManager.setFirstCommandTarget (this);
+
         // this lets the command manager use keypresses that arrive in our window to send out commands
         addKeyListener (commandManager.getKeyMappings());
 
         addChildComponent (menuHeader);
         addAndMakeVisible (outerCommandTarget);
         addAndMakeVisible (sidePanel);
+
+        setWantsKeyboardFocus (true);
 
         setSize (500, 500);
     }
@@ -172,6 +178,8 @@ public:
        #if JUCE_MAC
         MenuBarModel::setMacMainMenu (nullptr);
        #endif
+
+        commandManager.setFirstCommandTarget (nullptr);
     }
 
     void resized() override
@@ -314,7 +322,11 @@ public:
     }
 
 private:
+   #if JUCE_DEMO_RUNNER
+    ApplicationCommandManager& commandManager = getGlobalCommandManager();
+   #else
     ApplicationCommandManager commandManager;
+   #endif
 
     std::unique_ptr<MenuBarComponent> menuBar;
     MenuBarPosition menuBarPosition = MenuBarPosition::window;

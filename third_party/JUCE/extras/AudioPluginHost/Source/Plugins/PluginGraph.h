@@ -2,15 +2,15 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 6 End-User License
-   Agreement and JUCE Privacy Policy (both effective as of the 16th June 2020).
+   By using JUCE, you agree to the terms of both the JUCE 7 End-User License
+   Agreement and JUCE Privacy Policy.
 
-   End User License Agreement: www.juce.com/juce-6-licence
+   End User License Agreement: www.juce.com/juce-7-licence
    Privacy Policy: www.juce.com/juce-privacy-policy
 
    Or: You may also use this code under the terms of the GPL v3 (see
@@ -27,6 +27,29 @@
 
 #include "../UI/PluginWindow.h"
 
+//==============================================================================
+/** A type that encapsulates a PluginDescription and some preferences regarding
+    how plugins of that description should be instantiated.
+*/
+struct PluginDescriptionAndPreference
+{
+    enum class UseARA { no, yes };
+
+    PluginDescriptionAndPreference() = default;
+
+    explicit PluginDescriptionAndPreference (PluginDescription pd)
+        : pluginDescription (std::move (pd)),
+          useARA (pluginDescription.hasARAExtension ? PluginDescriptionAndPreference::UseARA::yes
+                                                    : PluginDescriptionAndPreference::UseARA::no)
+    {}
+
+    PluginDescriptionAndPreference (PluginDescription pd, UseARA ara)
+        : pluginDescription (std::move (pd)), useARA (ara)
+    {}
+
+    PluginDescription pluginDescription;
+    UseARA useARA = UseARA::no;
+};
 
 //==============================================================================
 /**
@@ -38,13 +61,13 @@ class PluginGraph   : public FileBasedDocument,
 {
 public:
     //==============================================================================
-    PluginGraph (AudioPluginFormatManager&);
+    PluginGraph (AudioPluginFormatManager&, KnownPluginList&);
     ~PluginGraph() override;
 
     //==============================================================================
     using NodeID = AudioProcessorGraph::NodeID;
 
-    void addPlugin (const PluginDescription&, Point<double>);
+    void addPlugin (const PluginDescriptionAndPreference&, Point<double>);
 
     AudioProcessorGraph::Node::Ptr getNodeForName (const String& name) const;
 
@@ -60,7 +83,7 @@ public:
 
     //==============================================================================
     void audioProcessorParameterChanged (AudioProcessor*, int, float) override {}
-    void audioProcessorChanged (AudioProcessor*) override { changed(); }
+    void audioProcessorChanged (AudioProcessor*, const ChangeDetails&) override { changed(); }
 
     //==============================================================================
     std::unique_ptr<XmlElement> createXml() const;
@@ -85,13 +108,17 @@ public:
 private:
     //==============================================================================
     AudioPluginFormatManager& formatManager;
+    KnownPluginList& knownPlugins;
     OwnedArray<PluginWindow> activePluginWindows;
 
     NodeID lastUID;
     NodeID getNextUID() noexcept;
 
     void createNodeFromXml (const XmlElement&);
-    void addPluginCallback (std::unique_ptr<AudioPluginInstance>, const String& error, Point<double>);
+    void addPluginCallback (std::unique_ptr<AudioPluginInstance>,
+                            const String& error,
+                            Point<double>,
+                            PluginDescriptionAndPreference::UseARA useARA);
     void changeListenerCallback (ChangeBroadcaster*) override;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginGraph)

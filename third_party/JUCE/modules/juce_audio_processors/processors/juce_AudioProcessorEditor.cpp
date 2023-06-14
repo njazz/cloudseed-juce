@@ -2,15 +2,15 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 6 End-User License
-   Agreement and JUCE Privacy Policy (both effective as of the 16th June 2020).
+   By using JUCE, you agree to the terms of both the JUCE 7 End-User License
+   Agreement and JUCE Privacy Policy.
 
-   End User License Agreement: www.juce.com/juce-6-licence
+   End User License Agreement: www.juce.com/juce-7-licence
    Privacy Policy: www.juce.com/juce-privacy-policy
 
    Or: You may also use this code under the terms of the GPL v3 (see
@@ -58,12 +58,12 @@ void AudioProcessorEditor::initialise()
 {
     /*
       ==========================================================================
-       In accordance with the terms of the JUCE 6 End-Use License Agreement, the
+       In accordance with the terms of the JUCE 7 End-Use License Agreement, the
        JUCE Code in SECTION A cannot be removed, changed or otherwise rendered
        ineffective unless you have a JUCE Indie or Pro license, or are using
        JUCE under the GPL v3 license.
 
-       End User License Agreement: www.juce.com/juce-6-licence
+       End User License Agreement: www.juce.com/juce-7-licence
       ==========================================================================
     */
 
@@ -73,38 +73,24 @@ void AudioProcessorEditor::initialise()
 
     // END SECTION A
 
-    resizable = false;
-
     attachConstrainer (&defaultConstrainer);
     resizeListener.reset (new AudioProcessorEditorListener (*this));
     addComponentListener (resizeListener.get());
 }
 
 //==============================================================================
-void AudioProcessorEditor::setResizable (const bool shouldBeResizable, const bool useBottomRightCornerResizer)
+void AudioProcessorEditor::setResizable (bool allowHostToResize, bool useBottomRightCornerResizer)
 {
-    if (shouldBeResizable != resizable)
+    resizableByHost = allowHostToResize;
+
+    const auto hasResizableCorner = (resizableCorner.get() != nullptr);
+
+    if (useBottomRightCornerResizer != hasResizableCorner)
     {
-        resizable = shouldBeResizable;
-
-        if (! resizable && constrainer == &defaultConstrainer)
-        {
-            auto width = getWidth();
-            auto height = getHeight();
-
-            if (width > 0 && height > 0)
-                defaultConstrainer.setSizeLimits (width, height, width, height);
-        }
-    }
-
-    bool shouldHaveCornerResizer = (useBottomRightCornerResizer && shouldBeResizable);
-
-    if (shouldHaveCornerResizer != (resizableCorner != nullptr))
-    {
-        if (shouldHaveCornerResizer)
+        if (useBottomRightCornerResizer)
             attachResizableCornerComponent();
         else
-            resizableCorner.reset();
+            resizableCorner = nullptr;
     }
 }
 
@@ -113,19 +99,23 @@ void AudioProcessorEditor::setResizeLimits (int newMinimumWidth,
                                             int newMaximumWidth,
                                             int newMaximumHeight) noexcept
 {
-    // if you've set up a custom constrainer then these settings won't have any effect..
-    jassert (constrainer == &defaultConstrainer || constrainer == nullptr);
+    if (constrainer != nullptr && constrainer != &defaultConstrainer)
+    {
+        // if you've set up a custom constrainer then these settings won't have any effect..
+        jassertfalse;
+        return;
+    }
 
-    const bool shouldEnableResize      = (newMinimumWidth != newMaximumWidth || newMinimumHeight != newMaximumHeight);
-    const bool shouldHaveCornerResizer = (shouldEnableResize != resizable    || resizableCorner != nullptr);
+    resizableByHost = (newMinimumWidth != newMaximumWidth || newMinimumHeight != newMaximumHeight);
 
-    setResizable (shouldEnableResize, shouldHaveCornerResizer);
+    defaultConstrainer.setSizeLimits (newMinimumWidth, newMinimumHeight,
+                                      newMaximumWidth, newMaximumHeight);
 
     if (constrainer == nullptr)
         setConstrainer (&defaultConstrainer);
 
-    defaultConstrainer.setSizeLimits (newMinimumWidth, newMinimumHeight,
-                                      newMaximumWidth, newMaximumHeight);
+    if (resizableCorner != nullptr)
+        attachResizableCornerComponent();
 
     setBoundsConstrained (getBounds());
 }
@@ -134,11 +124,11 @@ void AudioProcessorEditor::setConstrainer (ComponentBoundsConstrainer* newConstr
 {
     if (constrainer != newConstrainer)
     {
-        if (newConstrainer != nullptr)
-            resizable = (newConstrainer->getMinimumWidth()  != newConstrainer->getMaximumWidth()
-                      || newConstrainer->getMinimumHeight() != newConstrainer->getMaximumHeight());
-
         attachConstrainer (newConstrainer);
+
+        if (constrainer != nullptr)
+            resizableByHost = (newConstrainer->getMinimumWidth() != newConstrainer->getMaximumWidth()
+                                || newConstrainer->getMinimumHeight() != newConstrainer->getMaximumHeight());
 
         if (resizableCorner != nullptr)
             attachResizableCornerComponent();
@@ -156,7 +146,7 @@ void AudioProcessorEditor::attachConstrainer (ComponentBoundsConstrainer* newCon
 
 void AudioProcessorEditor::attachResizableCornerComponent()
 {
-    resizableCorner.reset (new ResizableCornerComponent (this, constrainer));
+    resizableCorner = std::make_unique<ResizableCornerComponent> (this, constrainer);
     Component::addChildComponent (resizableCorner.get());
     resizableCorner->setAlwaysOnTop (true);
     editorResized (true);
@@ -164,10 +154,20 @@ void AudioProcessorEditor::attachResizableCornerComponent()
 
 void AudioProcessorEditor::setBoundsConstrained (Rectangle<int> newBounds)
 {
-    if (constrainer != nullptr)
-        constrainer->setBoundsForComponent (this, newBounds, false, false, false, false);
-    else
+    if (constrainer == nullptr)
+    {
         setBounds (newBounds);
+        return;
+    }
+
+    auto currentBounds = getBounds();
+
+    constrainer->setBoundsForComponent (this,
+                                        newBounds,
+                                        newBounds.getY() != currentBounds.getY() && newBounds.getBottom() == currentBounds.getBottom(),
+                                        newBounds.getX() != currentBounds.getX() && newBounds.getRight()  == currentBounds.getRight(),
+                                        newBounds.getY() == currentBounds.getY() && newBounds.getBottom() != currentBounds.getBottom(),
+                                        newBounds.getX() == currentBounds.getX() && newBounds.getRight()  != currentBounds.getRight());
 }
 
 void AudioProcessorEditor::editorResized (bool wasResized)
@@ -194,11 +194,6 @@ void AudioProcessorEditor::editorResized (bool wasResized)
                                         getHeight() - resizerSize,
                                         resizerSize, resizerSize);
         }
-
-        if (! resizable)
-            if (auto w = getWidth())
-                if (auto h = getHeight())
-                    defaultConstrainer.setSizeLimits (w, h, w, h);
     }
 }
 
@@ -221,13 +216,11 @@ void AudioProcessorEditor::setScaleFactor (float newScale)
 typedef ComponentPeer* (*createUnityPeerFunctionType) (Component&);
 createUnityPeerFunctionType juce_createUnityPeerFn = nullptr;
 
-ComponentPeer* AudioProcessorEditor::createNewPeer (int styleFlags, void* nativeWindow)
+ComponentPeer* AudioProcessorEditor::createNewPeer ([[maybe_unused]] int styleFlags,
+                                                    [[maybe_unused]] void* nativeWindow)
 {
     if (juce_createUnityPeerFn != nullptr)
-    {
-        ignoreUnused (styleFlags, nativeWindow);
         return juce_createUnityPeerFn (*this);
-    }
 
     return Component::createNewPeer (styleFlags, nativeWindow);
 }

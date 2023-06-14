@@ -2,7 +2,7 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
@@ -45,6 +45,22 @@ namespace AndroidStatsHelpers
         return juceString (LocalRef<jstring> ((jstring) getEnv()->CallStaticObjectMethod (SystemClass,
                                                                                           SystemClass.getProperty,
                                                                                           javaString (name).get())));
+    }
+
+    static String getAndroidID()
+    {
+        auto* env = getEnv();
+
+        if (auto settings = (jclass) env->FindClass ("android/provider/Settings$Secure"))
+        {
+            if (auto fId = env->GetStaticFieldID (settings, "ANDROID_ID", "Ljava/lang/String;"))
+            {
+                auto androidID = (jstring) env->GetStaticObjectField (settings, fId);
+                return juceString (LocalRef<jstring> (androidID));
+            }
+        }
+
+        return "";
     }
 
     static String getLocaleValue (bool isRegion)
@@ -170,6 +186,15 @@ String SystemStats::getUserLanguage()    { return AndroidStatsHelpers::getLocale
 String SystemStats::getUserRegion()      { return AndroidStatsHelpers::getLocaleValue (true); }
 String SystemStats::getDisplayLanguage() { return getUserLanguage() + "-" + getUserRegion(); }
 
+String SystemStats::getUniqueDeviceID()
+{
+    auto id = String ((uint64_t) AndroidStatsHelpers::getAndroidID().hashCode64());
+
+    // Please tell someone at JUCE if this occurs
+    jassert (id.isNotEmpty());
+    return id;
+}
+
 //==============================================================================
 void CPUInformation::initialise() noexcept
 {
@@ -229,7 +254,7 @@ int64 Time::getHighResolutionTicksPerSecond() noexcept
 
 double Time::getMillisecondCounterHiRes() noexcept
 {
-    return getHighResolutionTicks() * 0.001;
+    return (double) getHighResolutionTicks() * 0.001;
 }
 
 bool Time::setSystemTimeToThisTime() const

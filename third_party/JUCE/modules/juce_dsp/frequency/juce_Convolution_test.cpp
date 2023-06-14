@@ -2,15 +2,15 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 6 End-User License
-   Agreement and JUCE Privacy Policy (both effective as of the 16th June 2020).
+   By using JUCE, you agree to the terms of both the JUCE 7 End-User License
+   Agreement and JUCE Privacy Policy.
 
-   End User License Agreement: www.juce.com/juce-6-licence
+   End User License Agreement: www.juce.com/juce-7-licence
    Privacy Policy: www.juce.com/juce-privacy-policy
 
    Or: You may also use this code under the terms of the GPL v3 (see
@@ -62,7 +62,7 @@ class ConvolutionTest  : public UnitTest
         AudioBuffer<float> result (2, length);
         result.clear();
 
-        auto** channels = result.getArrayOfWritePointers();
+        auto* const* channels = result.getArrayOfWritePointers();
         std::for_each (channels, channels + result.getNumChannels(), [length] (auto* channel)
         {
             std::fill (channel, channel + length, 1.0f);
@@ -87,6 +87,19 @@ class ConvolutionTest  : public UnitTest
         for (size_t channel = 0; channel != block.getNumChannels(); ++channel)
             for (size_t sample = 0; sample != block.getNumSamples(); ++sample)
                 expect (! std::isnan (block.getSample ((int) channel, (int) sample)));
+    }
+
+    void checkAllChannelsNonZero (const AudioBlock<float>& block)
+    {
+        for (size_t i = 0; i != block.getNumChannels(); ++i)
+        {
+            const auto* channel = block.getChannelPointer (i);
+
+            expect (std::any_of (channel, channel + block.getNumSamples(), [] (float sample)
+            {
+                return sample != 0.0f;
+            }));
+        }
     }
 
     template <typename T>
@@ -168,16 +181,21 @@ class ConvolutionTest  : public UnitTest
             }
         };
 
-        const auto time = Time::getMillisecondCounter();
-
-        // Wait 10 seconds to load the impulse response
-        while (Time::getMillisecondCounter() - time < 10'000)
+        // If we load an IR while the convolution is already running, we'll need to wait
+        // for it to be loaded on a background thread
+        if (initSequence == InitSequence::prepareThenLoad)
         {
-            processBlocksWithDiracImpulse();
+            const auto time = Time::getMillisecondCounter();
 
-            // Check if the impulse response was loaded
-            if (block.getSample (0, 1) != 0.0f)
-                break;
+            // Wait 10 seconds to load the impulse response
+            while (Time::getMillisecondCounter() - time < 10'000)
+            {
+                processBlocksWithDiracImpulse();
+
+                // Check if the impulse response was loaded
+                if (block.getSample (0, 1) != 0.0f)
+                    break;
+            }
         }
 
         // At this point, our convolution should be loaded and the current IR size should
@@ -326,6 +344,45 @@ public:
             checkForNans (block);
         }
 
+        beginTest ("Convolutions can cope with a change in samplerate and blocksize");
+        {
+            Convolution convolution;
+
+            auto copy = impulseData;
+            convolution.loadImpulseResponse (std::move (copy),
+                                             2000,
+                                             Convolution::Stereo::yes,
+                                             Convolution::Trim::no,
+                                             Convolution::Normalise::yes);
+
+            const dsp::ProcessSpec specs[] = { { 96'000.0, 1024, 2 },
+                                               { 48'000.0, 512, 2 },
+                                               { 44'100.0, 256, 2 } };
+
+            for (const auto& thisSpec : specs)
+            {
+                convolution.prepare (thisSpec);
+
+                expectWithinAbsoluteError ((double) convolution.getCurrentIRSize(),
+                                           thisSpec.sampleRate * 0.5,
+                                           1.0);
+
+                juce::AudioBuffer<float> thisBuffer ((int) thisSpec.numChannels,
+                                                     (int) thisSpec.maximumBlockSize);
+                AudioBlock<float> thisBlock { thisBuffer };
+                ProcessContextReplacing<float> thisContext { thisBlock };
+
+                nTimes (100, [&]
+                {
+                    addDiracImpulse (thisBlock);
+                    convolution.process (thisContext);
+
+                    checkForNans (thisBlock);
+                    checkAllChannelsNonZero (thisBlock);
+                });
+            }
+        }
+
         beginTest ("Short uniform convolutions work");
         {
             const auto ramp = makeRamp (static_cast<int> (spec.maximumBlockSize) / 2);
@@ -457,6 +514,9 @@ public:
 
                     AudioBuffer<float> result (original.getNumChannels(), finalSize);
                     resamplingSource.getNextAudioBlock ({ &result, 0, result.getNumSamples() });
+
+                    result.applyGain ((float) resampleRatio);
+
                     return result;
                 }();
 
@@ -493,10 +553,10 @@ public:
             const auto ramp = makeRamp (static_cast<int> (spec.maximumBlockSize) * 8);
             using BlockSize = decltype (spec.maximumBlockSize);
 
-            for (auto latency : { /*static_cast<BlockSize> (0),
+            for (auto latency : { static_cast<BlockSize> (0),
                                   spec.maximumBlockSize / 3,
                                   spec.maximumBlockSize,
-                                  spec.maximumBlockSize * 2, */
+                                  spec.maximumBlockSize * 2,
                                   static_cast<BlockSize> (spec.maximumBlockSize * 2.5) })
             {
                 testConvolution (spec,

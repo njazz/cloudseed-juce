@@ -2,7 +2,7 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
@@ -28,6 +28,39 @@
 
 namespace juce
 {
+
+template <typename T>
+class CheckedReference
+{
+public:
+    template <typename Ptr>
+    friend auto createCheckedReference (Ptr*);
+
+    void clear()
+    {
+        std::lock_guard lock { mutex };
+        ptr = nullptr;
+    }
+
+    template <typename Callback>
+    void access (Callback&& callback)
+    {
+        std::lock_guard lock { mutex };
+        callback (ptr);
+    }
+
+private:
+    explicit CheckedReference (T* ptrIn)  : ptr (ptrIn) {}
+
+    T* ptr;
+    std::mutex mutex;
+};
+
+template <typename Ptr>
+auto createCheckedReference (Ptr* ptrIn)
+{
+    return std::shared_ptr<CheckedReference<Ptr>> { new CheckedReference<Ptr> (ptrIn) };
+}
 
 class MidiInput::Pimpl
 {
@@ -109,7 +142,7 @@ private:
         {
             stop();
 
-            if (deviceHandle != 0)
+            if (deviceHandle != nullptr)
             {
                 for (int count = 5; --count >= 0;)
                 {
@@ -183,7 +216,7 @@ private:
 
         void start()
         {
-            if (deviceHandle != 0 && ! isStarted.load())
+            if (deviceHandle != nullptr && ! isStarted.load())
             {
                 activeMidiCollectors.addIfNotAlreadyThere (this);
 
@@ -232,7 +265,7 @@ private:
         }
 
         MidiDeviceInfo deviceInfo;
-        HMIDIIN deviceHandle = 0;
+        HMIDIIN deviceHandle = nullptr;
 
     private:
         Win32MidiService& midiService;
@@ -258,7 +291,7 @@ private:
 
         struct MidiHeader
         {
-            MidiHeader() {}
+            MidiHeader() = default;
 
             void prepare (HMIDIIN device)
             {
@@ -334,7 +367,7 @@ private:
     };
 
     //==============================================================================
-    template<class WrapperType>
+    template <class WrapperType>
     struct Win32MidiDeviceQuery
     {
         static Array<MidiDeviceInfo> getAvailableDevices()
@@ -396,7 +429,7 @@ private:
             collector->addClient (this);
         }
 
-        ~Win32InputWrapper()
+        ~Win32InputWrapper() override
         {
             collector->removeClient (this);
         }
@@ -413,7 +446,7 @@ private:
 
                 if (d.identifier == deviceIdentifier)
                 {
-                    deviceID = i;
+                    deviceID = (UINT) i;
                     deviceName = d.name;
                     break;
                 }
@@ -526,7 +559,7 @@ private:
 
                 if (d.identifier == deviceIdentifier)
                 {
-                    deviceID = i;
+                    deviceID = (UINT) i;
                     deviceName = d.name;
                     break;
                 }
@@ -554,7 +587,7 @@ private:
 
             for (int i = 4; --i >= 0;)
             {
-                HMIDIOUT h = 0;
+                HMIDIOUT h = nullptr;
                 auto res = midiOutOpen (&h, deviceID, 0, 0, CALLBACK_NULL);
 
                 if (res == MMSYSERR_NOERROR)
@@ -608,7 +641,7 @@ private:
             {
                 for (int i = 0; i < 50; ++i)
                 {
-                    if (midiOutShortMsg (han->handle, *(unsigned int*) message.getRawData()) != MIDIERR_NOTREADY)
+                    if (midiOutShortMsg (han->handle, *unalignedPointerCast<const unsigned int*> (message.getRawData())) != MIDIERR_NOTREADY)
                         break;
 
                     Sleep (1);
@@ -782,9 +815,9 @@ private:
     public:
         virtual ~DeviceCallbackHandler() {};
 
-        virtual HRESULT addDevice (IDeviceInformation*) = 0;
-        virtual HRESULT removeDevice (IDeviceInformationUpdate*) = 0;
-        virtual HRESULT updateDevice (IDeviceInformationUpdate*) = 0;
+        JUCE_COMCALL addDevice (IDeviceInformation*) = 0;
+        JUCE_COMCALL removeDevice (IDeviceInformationUpdate*) = 0;
+        JUCE_COMCALL updateDevice (IDeviceInformationUpdate*) = 0;
 
         bool attach (HSTRING deviceSelector, DeviceInformationKind infoKind)
         {
@@ -834,7 +867,7 @@ private:
                 }
             }
 
-            WinRTWrapper::ComPtr<IIterable<HSTRING>> iter;
+            ComSmartPtr<IIterable<HSTRING>> iter;
             auto hr = requestedProperties->QueryInterface (__uuidof (IIterable<HSTRING>), (void**) iter.resetAndGetPointerAddress());
 
             if (FAILED (hr))
@@ -891,7 +924,7 @@ private:
             watcher = nullptr;
         }
 
-        template<typename InfoType>
+        template <typename InfoType>
         IInspectable* getValueFromDeviceInfo (String key, InfoType* info)
         {
             __FIMapView_2_HSTRING_IInspectable* properties;
@@ -924,7 +957,7 @@ private:
 
         String getGUIDFromInspectable (IInspectable& inspectable)
         {
-            WinRTWrapper::ComPtr<IReference<GUID>> guidRef;
+            ComSmartPtr<IReference<GUID>> guidRef;
             auto hr = inspectable.QueryInterface (__uuidof (IReference<GUID>),
                                                   (void**) guidRef.resetAndGetPointerAddress());
 
@@ -951,7 +984,7 @@ private:
 
         bool getBoolFromInspectable (IInspectable& inspectable)
         {
-            WinRTWrapper::ComPtr<IReference<bool>> boolRef;
+            ComSmartPtr<IReference<bool>> boolRef;
             auto hr = inspectable.QueryInterface (__uuidof (IReference<bool>),
                                                   (void**) boolRef.resetAndGetPointerAddress());
 
@@ -978,7 +1011,7 @@ private:
         struct DeviceEnumerationThread   : public Thread
         {
             DeviceEnumerationThread (DeviceCallbackHandler& h,
-                                     WinRTWrapper::ComPtr<IDeviceWatcher>& w,
+                                     ComSmartPtr<IDeviceWatcher>& w,
                                      EventRegistrationToken& added,
                                      EventRegistrationToken& removed,
                                      EventRegistrationToken& updated)
@@ -1012,12 +1045,12 @@ private:
             }
 
             DeviceCallbackHandler& handler;
-            WinRTWrapper::ComPtr<IDeviceWatcher>& watcher;
+            ComSmartPtr<IDeviceWatcher>& watcher;
             EventRegistrationToken& deviceAddedToken, deviceRemovedToken, deviceUpdatedToken;
         };
 
         //==============================================================================
-        WinRTWrapper::ComPtr<IDeviceWatcher> watcher;
+        ComSmartPtr<IDeviceWatcher> watcher;
 
         EventRegistrationToken deviceAddedToken   { 0 },
                                deviceRemovedToken { 0 },
@@ -1222,7 +1255,7 @@ private:
     template <typename COMFactoryType>
     struct MidiIODeviceWatcher final   : private DeviceCallbackHandler
     {
-        MidiIODeviceWatcher (WinRTWrapper::ComPtr<COMFactoryType>& comFactory)
+        MidiIODeviceWatcher (ComSmartPtr<COMFactoryType>& comFactory)
             : factory (comFactory)
         {
         }
@@ -1407,7 +1440,7 @@ private:
             return {};
         }
 
-        WinRTWrapper::ComPtr<COMFactoryType>& factory;
+        ComSmartPtr<COMFactoryType>& factory;
 
         Array<WinRTMIDIDeviceInfo> connectedDevices;
         CriticalSection deviceChanges;
@@ -1417,59 +1450,56 @@ private:
     };
 
     //==============================================================================
-    template <typename COMFactoryType, typename COMInterfaceType, typename COMType>
-    struct OpenMidiPortThread  : public Thread
+    template <typename COMType, typename COMFactoryType, typename COMInterfaceType>
+    static void openMidiPortThread (String threadName,
+                                    String midiDeviceID,
+                                    ComSmartPtr<COMFactoryType>& comFactory,
+                                    ComSmartPtr<COMInterfaceType>& comPort)
     {
-        OpenMidiPortThread (String threadName, String midiDeviceID,
-                            WinRTWrapper::ComPtr<COMFactoryType>& comFactory,
-                            WinRTWrapper::ComPtr<COMInterfaceType>& comPort)
-            : Thread (threadName),
-              deviceID (midiDeviceID),
-              factory (comFactory),
-              port (comPort)
+        std::thread { [&]
         {
-        }
+            Thread::setCurrentThreadName (threadName);
 
-        ~OpenMidiPortThread()
-        {
-            stopThread (2000);
-        }
-
-        void run() override
-        {
-            WinRTWrapper::ScopedHString hDeviceId (deviceID);
-            WinRTWrapper::ComPtr<IAsyncOperation<COMType*>> asyncOp;
-            auto hr = factory->FromIdAsync (hDeviceId.get(), asyncOp.resetAndGetPointerAddress());
+            const WinRTWrapper::ScopedHString hDeviceId { midiDeviceID };
+            ComSmartPtr<IAsyncOperation<COMType*>> asyncOp;
+            const auto hr = comFactory->FromIdAsync (hDeviceId.get(), asyncOp.resetAndGetPointerAddress());
 
             if (FAILED (hr))
                 return;
 
-            hr = asyncOp->put_Completed (Callback<IAsyncOperationCompletedHandler<COMType*>> (
-                [this] (IAsyncOperation<COMType*>* asyncOpPtr, AsyncStatus)
-                {
-                    if (asyncOpPtr == nullptr)
-                        return E_ABORT;
+            std::promise<ComSmartPtr<COMInterfaceType>> promise;
+            auto future = promise.get_future();
 
-                    auto hr = asyncOpPtr->GetResults (port.resetAndGetPointerAddress());
+            auto callback = [p = std::move (promise)] (IAsyncOperation<COMType*>* asyncOpPtr, AsyncStatus) mutable
+            {
+               if (asyncOpPtr == nullptr)
+               {
+                   p.set_value (nullptr);
+                   return E_ABORT;
+               }
 
-                    if (FAILED (hr))
-                        return hr;
+               ComSmartPtr<COMInterfaceType> result;
+               const auto hr = asyncOpPtr->GetResults (result.resetAndGetPointerAddress());
 
-                    portOpened.signal();
-                    return S_OK;
-                }
-            ).Get());
+               if (FAILED (hr))
+               {
+                   p.set_value (nullptr);
+                   return hr;
+               }
 
-            // We need to use a timeout here, rather than waiting indefinitely, as the
-            // WinRT API can occasionally hang!
-            portOpened.wait (2000);
-        }
+               p.set_value (std::move (result));
+               return S_OK;
+           };
 
-        const String deviceID;
-        WinRTWrapper::ComPtr<COMFactoryType>& factory;
-        WinRTWrapper::ComPtr<COMInterfaceType>& port;
-        WaitableEvent portOpened { true };
-    };
+           const auto ir = asyncOp->put_Completed (Callback<IAsyncOperationCompletedHandler<COMType*>> (std::move (callback)).Get());
+
+           if (FAILED (ir))
+               return;
+
+           if (future.wait_for (std::chrono::milliseconds (2000)) == std::future_status::ready)
+               comPort = future.get();
+        } }.join();
+    }
 
     //==============================================================================
     template <typename MIDIIOStaticsType, typename MIDIPort>
@@ -1552,7 +1582,7 @@ private:
         BLEDeviceWatcher& bleDeviceWatcher;
         WinRTMIDIDeviceInfo deviceInfo;
         bool isBLEDevice = false;
-        WinRTWrapper::ComPtr<MIDIPort> midiPort;
+        ComSmartPtr<MIDIPort> midiPort;
     };
 
     //==============================================================================
@@ -1565,12 +1595,7 @@ private:
               inputDevice (input),
               callback (cb)
         {
-            OpenMidiPortThread<IMidiInPortStatics, IMidiInPort, MidiInPort> portThread ("Open WinRT MIDI input port",
-                                                                                        deviceInfo.deviceID,
-                                                                                        service.midiInFactory,
-                                                                                        midiPort);
-            portThread.startThread();
-            portThread.waitForThreadToExit (-1);
+            openMidiPortThread<MidiInPort> ("Open WinRT MIDI input port", deviceInfo.deviceID, service.midiInFactory, midiPort);
 
             if (midiPort == nullptr)
             {
@@ -1582,7 +1607,18 @@ private:
 
             auto hr = midiPort->add_MessageReceived (
                 Callback<ITypedEventHandler<MidiInPort*, MidiMessageReceivedEventArgs*>> (
-                    [this] (IMidiInPort*, IMidiMessageReceivedEventArgs* args) { return midiInMessageReceived (args); }
+                    [self = checkedReference] (IMidiInPort*, IMidiMessageReceivedEventArgs* args)
+                    {
+                        HRESULT hr = S_OK;
+
+                        self->access ([&hr, args] (auto* ptr)
+                                      {
+                                         if (ptr != nullptr)
+                                             hr = ptr->midiInMessageReceived (args);
+                                      });
+
+                        return hr;
+                    }
                 ).Get(),
                 &midiInMessageToken);
 
@@ -1595,6 +1631,7 @@ private:
 
         ~WinRTInputWrapper()
         {
+            checkedReference->clear();
             disconnect();
         }
 
@@ -1637,19 +1674,19 @@ private:
             if (! isStarted)
                 return S_OK;
 
-            WinRTWrapper::ComPtr<IMidiMessage> message;
+            ComSmartPtr<IMidiMessage> message;
             auto hr = args->get_Message (message.resetAndGetPointerAddress());
 
             if (FAILED (hr))
                 return hr;
 
-            WinRTWrapper::ComPtr<IBuffer> buffer;
+            ComSmartPtr<IBuffer> buffer;
             hr = message->get_RawData (buffer.resetAndGetPointerAddress());
 
             if (FAILED (hr))
                 return hr;
 
-            WinRTWrapper::ComPtr<Windows::Storage::Streams::IBufferByteAccess> bufferByteAccess;
+            ComSmartPtr<Windows::Storage::Streams::IBufferByteAccess> bufferByteAccess;
             hr = buffer->QueryInterface (bufferByteAccess.resetAndGetPointerAddress());
 
             if (FAILED (hr))
@@ -1706,6 +1743,8 @@ private:
         double startTime = 0;
         bool isStarted = false;
 
+        std::shared_ptr<CheckedReference<WinRTInputWrapper>> checkedReference = createCheckedReference (this);
+
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (WinRTInputWrapper);
     };
 
@@ -1716,12 +1755,7 @@ private:
         WinRTOutputWrapper (WinRTMidiService& service, const String& deviceIdentifier)
             : WinRTIOWrapper <IMidiOutPortStatics, IMidiOutPort> (*service.bleDeviceWatcher, *service.outputDeviceWatcher, deviceIdentifier)
         {
-            OpenMidiPortThread<IMidiOutPortStatics, IMidiOutPort, IMidiOutPort> portThread ("Open WinRT MIDI output port",
-                                                                                            deviceInfo.deviceID,
-                                                                                            service.midiOutFactory,
-                                                                                            midiPort);
-            portThread.startThread();
-            portThread.waitForThreadToExit (-1);
+            openMidiPortThread<IMidiOutPort> ("Open WinRT MIDI output port", deviceInfo.deviceID, service.midiOutFactory, midiPort);
 
             if (midiPort == nullptr)
                 throw std::runtime_error ("Timed out waiting for midi output port creation");
@@ -1775,15 +1809,15 @@ private:
         String getDeviceName() override          { return deviceInfo.name; }
 
         //==============================================================================
-        WinRTWrapper::ComPtr<IBuffer> buffer;
-        WinRTWrapper::ComPtr<Windows::Storage::Streams::IBufferByteAccess> bufferByteAccess;
+        ComSmartPtr<IBuffer> buffer;
+        ComSmartPtr<Windows::Storage::Streams::IBufferByteAccess> bufferByteAccess;
         uint8_t* bufferData = nullptr;
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (WinRTOutputWrapper);
     };
 
-    WinRTWrapper::ComPtr<IMidiInPortStatics>  midiInFactory;
-    WinRTWrapper::ComPtr<IMidiOutPortStatics> midiOutFactory;
+    ComSmartPtr<IMidiInPortStatics>  midiInFactory;
+    ComSmartPtr<IMidiOutPortStatics> midiOutFactory;
 
     std::unique_ptr<MidiIODeviceWatcher<IMidiInPortStatics>>  inputDeviceWatcher;
     std::unique_ptr<MidiIODeviceWatcher<IMidiOutPortStatics>> outputDeviceWatcher;

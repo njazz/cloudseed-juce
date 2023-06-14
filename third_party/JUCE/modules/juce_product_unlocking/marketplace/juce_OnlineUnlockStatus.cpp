@@ -2,15 +2,15 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 6 End-User License
-   Agreement and JUCE Privacy Policy (both effective as of the 16th June 2020).
+   By using JUCE, you agree to the terms of both the JUCE 7 End-User License
+   Agreement and JUCE Privacy Policy.
 
-   End User License Agreement: www.juce.com/juce-6-licence
+   End User License Agreement: www.juce.com/juce-7-licence
    Privacy Policy: www.juce.com/juce-privacy-policy
 
    Or: You may also use this code under the terms of the GPL v3 (see
@@ -229,7 +229,7 @@ void OnlineUnlockStatus::load()
     MemoryBlock mb;
     mb.fromBase64Encoding (getState());
 
-    if (mb.getSize() > 0)
+    if (! mb.isEmpty())
         status = ValueTree::readFromGZIPData (mb.getData(), mb.getSize());
     else
         status = ValueTree (stateTagName);
@@ -280,6 +280,8 @@ char OnlineUnlockStatus::MachineIDUtilities::getPlatformPrefix()
     return 'W';
    #elif JUCE_LINUX
     return 'L';
+   #elif JUCE_BSD
+    return 'B';
    #elif JUCE_IOS
     return 'I';
    #elif JUCE_ANDROID
@@ -312,6 +314,14 @@ void OnlineUnlockStatus::MachineIDUtilities::addMACAddressesToList (StringArray&
         ids.add (getEncodedIDString (address.toString()));
 }
 
+String OnlineUnlockStatus::MachineIDUtilities::getUniqueMachineID()
+{
+    return getEncodedIDString (SystemStats::getUniqueDeviceID());
+}
+
+JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wdeprecated-declarations")
+JUCE_BEGIN_IGNORE_WARNINGS_MSVC (4996)
+
 StringArray OnlineUnlockStatus::MachineIDUtilities::getLocalMachineIDs()
 {
     auto identifiers = SystemStats::getDeviceIdentifiers();
@@ -326,6 +336,9 @@ StringArray OnlineUnlockStatus::getLocalMachineIDs()
 {
     return MachineIDUtilities::getLocalMachineIDs();
 }
+
+JUCE_END_IGNORE_WARNINGS_GCC_LIKE
+JUCE_END_IGNORE_WARNINGS_MSVC
 
 void OnlineUnlockStatus::userCancelled()
 {
@@ -376,22 +389,19 @@ bool OnlineUnlockStatus::applyKeyFile (String keyFileContent)
     return false;
 }
 
-static bool canConnectToWebsite (const URL& url)
-{
-    std::unique_ptr<InputStream> in (url.createInputStream (false, nullptr, nullptr, String(), 2000, nullptr));
-    return in != nullptr;
-}
-
 static bool areMajorWebsitesAvailable()
 {
-    const char* urlsToTry[] = { "http://google.com",  "http://bing.com",  "http://amazon.com",
-                                "https://google.com", "https://bing.com", "https://amazon.com", nullptr};
+    static constexpr const char* const urlsToTry[] = { "http://google.com",  "http://bing.com",  "http://amazon.com",
+                                                       "https://google.com", "https://bing.com", "https://amazon.com" };
+    const auto canConnectToWebsite = [] (auto url)
+    {
+        return URL (url).createInputStream (URL::InputStreamOptions (URL::ParameterHandling::inAddress)
+                                                .withConnectionTimeoutMs (2000)) != nullptr;
+    };
 
-    for (const char** url = urlsToTry; *url != nullptr; ++url)
-        if (canConnectToWebsite (URL (*url)))
-            return true;
-
-    return false;
+    return std::any_of (std::begin (urlsToTry),
+                        std::end   (urlsToTry),
+                        canConnectToWebsite);
 }
 
 OnlineUnlockStatus::UnlockResult OnlineUnlockStatus::handleXmlReply (XmlElement xml)

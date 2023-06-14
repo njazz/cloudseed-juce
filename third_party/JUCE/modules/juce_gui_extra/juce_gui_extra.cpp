@@ -2,15 +2,15 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 6 End-User License
-   Agreement and JUCE Privacy Policy (both effective as of the 16th June 2020).
+   By using JUCE, you agree to the terms of both the JUCE 7 End-User License
+   Agreement and JUCE Privacy Policy.
 
-   End User License Agreement: www.juce.com/juce-6-licence
+   End User License Agreement: www.juce.com/juce-7-licence
    Privacy Policy: www.juce.com/juce-privacy-policy
 
    Or: You may also use this code under the terms of the GPL v3 (see
@@ -39,10 +39,7 @@
 #define JUCE_EVENTS_INCLUDE_WIN32_MESSAGE_WINDOW 1
 #define JUCE_GRAPHICS_INCLUDE_COREGRAPHICS_HELPERS 1
 #define JUCE_GUI_BASICS_INCLUDE_XHEADERS 1
-
-#if JUCE_USE_WIN_WEBVIEW2
- #define JUCE_EVENTS_INCLUDE_WINRT_WRAPPER 1
-#endif
+#define JUCE_GUI_BASICS_INCLUDE_SCOPED_THREAD_DPI_AWARENESS_SETTER 1
 
 #ifndef JUCE_PUSH_NOTIFICATIONS
  #define JUCE_PUSH_NOTIFICATIONS 0
@@ -70,10 +67,7 @@
  #import <WebKit/WebKit.h>
 
  #if JUCE_PUSH_NOTIFICATIONS
-  #if defined (__IPHONE_10_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_10_0
-   #import <UserNotifications/UserNotifications.h>
-  #endif
-
+  #import <UserNotifications/UserNotifications.h>
   #include "native/juce_ios_PushNotifications.cpp"
  #endif
 
@@ -97,35 +91,31 @@
    #include <windows.foundation.h>
    #include <windows.foundation.collections.h>
 
-   #pragma warning (push)
-   #pragma warning (disable: 4265)
+   JUCE_BEGIN_IGNORE_WARNINGS_MSVC (4265)
    #include <wrl.h>
    #include <wrl/wrappers/corewrappers.h>
-   #pragma warning (pop)
+   JUCE_END_IGNORE_WARNINGS_MSVC
 
    #include "WebView2.h"
 
-   #pragma warning (push)
-   #pragma warning (disable: 4458)
+   JUCE_BEGIN_IGNORE_WARNINGS_MSVC (4458)
    #include "WebView2EnvironmentOptions.h"
-   #pragma warning (pop)
+   JUCE_END_IGNORE_WARNINGS_MSVC
   #endif
 
  #endif
 
 //==============================================================================
-#elif JUCE_LINUX && JUCE_WEB_BROWSER
- JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wzero-as-null-pointer-constant", "-Wparentheses")
+#elif (JUCE_LINUX || JUCE_BSD) && JUCE_WEB_BROWSER
+ JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wzero-as-null-pointer-constant", "-Wparentheses", "-Wdeprecated-declarations")
 
  // If you're missing this header, you need to install the webkit2gtk-4.0 package
  #include <gtk/gtk.h>
-
- JUCE_END_IGNORE_WARNINGS_GCC_LIKE
-
- // If you're missing these headers, you need to install the webkit2gtk-4.0 package
  #include <gtk/gtkx.h>
  #include <glib-unix.h>
  #include <webkit2/webkit2.h>
+
+ JUCE_END_IGNORE_WARNINGS_GCC_LIKE
 #endif
 
 //==============================================================================
@@ -145,13 +135,13 @@
 #include "misc/juce_SystemTrayIconComponent.cpp"
 #include "misc/juce_LiveConstantEditor.cpp"
 #include "misc/juce_AnimatedAppComponent.cpp"
+#include "misc/juce_WebBrowserComponent.cpp"
 
 //==============================================================================
 #if JUCE_MAC || JUCE_IOS
 
- JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wundeclared-selector")
-
  #if JUCE_MAC
+  #include "native/juce_mac_NSViewFrameWatcher.h"
   #include "native/juce_mac_NSViewComponent.mm"
   #include "native/juce_mac_AppleRemote.mm"
   #include "native/juce_mac_SystemTrayIcon.cpp"
@@ -165,8 +155,6 @@
   #include "native/juce_mac_WebBrowserComponent.mm"
  #endif
 
- JUCE_END_IGNORE_WARNINGS_GCC_LIKE
-
 //==============================================================================
 #elif JUCE_WINDOWS
  #include "native/juce_win32_ActiveXComponent.cpp"
@@ -177,9 +165,10 @@
  #include "native/juce_win32_SystemTrayIcon.cpp"
 
 //==============================================================================
-#elif JUCE_LINUX
+#elif JUCE_LINUX || JUCE_BSD
  JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wzero-as-null-pointer-constant")
 
+ #include <juce_gui_basics/native/x11/juce_linux_ScopedWindowAssociation.h>
  #include "native/juce_linux_XEmbedComponent.cpp"
 
  #if JUCE_WEB_BROWSER

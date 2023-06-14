@@ -2,7 +2,7 @@
   ==============================================================================
 
    This file is part of the JUCE examples.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    The code included in this file is provided under the terms of the ISC license
    http://www.isc.org/downloads/software-support-policy/isc-license. Permission
@@ -33,7 +33,7 @@
                    juce_audio_plugin_client, juce_audio_processors,
                    juce_audio_utils, juce_core, juce_data_structures,
                    juce_events, juce_graphics, juce_gui_basics, juce_gui_extra
- exporters:        xcode_mac, vs2019
+ exporters:        xcode_mac, vs2022
 
  moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
@@ -41,6 +41,8 @@
  mainClass:        SamplerAudioProcessor
 
  useLocalCopy:     1
+
+ pluginCharacteristics: pluginIsSynth, pluginWantsMidiIn
 
  END_JUCE_PIP_METADATA
 
@@ -157,7 +159,7 @@ private:
     template <typename Func>
     static std::unique_ptr<Command<Proc>> makeCommand (Func&& func)
     {
-        using Decayed = typename std::decay<Func>::type;
+        using Decayed = std::decay_t<Func>;
         return std::make_unique<TemplateCommand<Proc, Decayed>> (std::forward<Func> (func));
     }
 
@@ -270,7 +272,7 @@ public:
         jassert (currentlyPlayingNote.keyState == MPENote::keyDown
               || currentlyPlayingNote.keyState == MPENote::keyDownAndSustained);
 
-        level    .setTargetValue (currentlyPlayingNote.pressure.asUnsignedFloat());
+        level    .setTargetValue (currentlyPlayingNote.noteOnVelocity.asUnsignedFloat());
         frequency.setTargetValue (currentlyPlayingNote.getFrequencyInHertz());
 
         auto loopPoints = samplerSound->getLoopPointsInSeconds();
@@ -280,6 +282,7 @@ public:
         for (auto smoothed : { &level, &frequency, &loopBegin, &loopEnd })
             smoothed->reset (currentSampleRate, smoothingLengthInSeconds);
 
+        previousPressure = currentlyPlayingNote.pressure.asUnsignedFloat();
         currentSamplePos = 0.0;
         tailOff          = 0.0;
     }
@@ -296,7 +299,10 @@ public:
 
     void notePressureChanged() override
     {
-        level.setTargetValue (currentlyPlayingNote.pressure.asUnsignedFloat());
+        const auto currentPressure = static_cast<double> (currentlyPlayingNote.pressure.asUnsignedFloat());
+        const auto deltaPressure = currentPressure - previousPressure;
+        level.setTargetValue (jlimit (0.0, 1.0, level.getCurrentValue() + deltaPressure));
+        previousPressure = currentPressure;
     }
 
     void notePitchbendChanged() override
@@ -487,6 +493,7 @@ private:
     SmoothedValue<double> frequency { 0 };
     SmoothedValue<double> loopBegin;
     SmoothedValue<double> loopEnd;
+    double previousPressure { 0 };
     double currentSamplePos { 0 };
     double tailOff { 0 };
     Direction currentDirection { Direction::forward };
@@ -544,7 +551,14 @@ inline std::unique_ptr<AudioFormatReader> makeAudioFormatReader (AudioFormatMana
 class AudioFormatReaderFactory
 {
 public:
+    AudioFormatReaderFactory() = default;
+    AudioFormatReaderFactory (const AudioFormatReaderFactory&) = default;
+    AudioFormatReaderFactory (AudioFormatReaderFactory&&) = default;
+    AudioFormatReaderFactory& operator= (const AudioFormatReaderFactory&) = default;
+    AudioFormatReaderFactory& operator= (AudioFormatReaderFactory&&) = default;
+
     virtual ~AudioFormatReaderFactory() noexcept = default;
+
     virtual std::unique_ptr<AudioFormatReader> make (AudioFormatManager&) const = 0;
     virtual std::unique_ptr<AudioFormatReaderFactory> clone() const = 0;
 };
@@ -597,22 +611,6 @@ private:
 
 namespace juce
 {
-
-bool operator== (const MPEZoneLayout& a, const MPEZoneLayout& b)
-{
-    if (a.getLowerZone() != b.getLowerZone())
-        return false;
-
-    if (a.getUpperZone() != b.getUpperZone())
-        return false;
-
-    return true;
-}
-
-bool operator!= (const MPEZoneLayout& a, const MPEZoneLayout& b)
-{
-    return ! (a == b);
-}
 
 template<>
 struct VariantConverter<LoopMode>
@@ -2183,7 +2181,7 @@ public:
     int getNumPrograms() override                                         { return 1; }
     int getCurrentProgram() override                                      { return 0; }
     void setCurrentProgram (int) override                                 {}
-    const String getProgramName (int) override                            { return {}; }
+    const String getProgramName (int) override                            { return "None"; }
     void changeProgramName (int, const String&) override                  {}
 
     //==============================================================================
@@ -2344,7 +2342,7 @@ public:
             std::vector<std::unique_ptr<MPESamplerVoice>> newVoices;
         };
 
-        numberOfVoices = std::min (maxVoices, numberOfVoices);
+        numberOfVoices = std::min ((int) maxVoices, numberOfVoices);
         auto loadedSamplerSound = samplerSound;
         std::vector<std::unique_ptr<MPESamplerVoice>> newSamplerVoices;
         newSamplerVoices.reserve ((size_t) numberOfVoices);
@@ -2595,12 +2593,10 @@ private:
     // with the real state of the processor.
     SpinLock commandQueueMutex;
 
-    static constexpr auto maxVoices { 20 };
+    enum { maxVoices = 20 };
 
     // This is used for visualising the current playback position of each voice.
     std::array<std::atomic<float>, maxVoices> playbackPositions;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SamplerAudioProcessor)
 };
-
-const int SamplerAudioProcessor::maxVoices;

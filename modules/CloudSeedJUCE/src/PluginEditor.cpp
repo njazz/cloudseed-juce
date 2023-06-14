@@ -418,7 +418,8 @@ CloudSeedJUCEEditor::CloudSeedJUCEEditor(CloudSeedProcessor& p)
         audioProcessor.setCurrentProgram(--idx);
 
         // fix:
-       audioProcessorChanged(nullptr);
+
+        audioProcessorChanged(nullptr, {});
     };
 
     presetName.fnInc = [&](){
@@ -427,7 +428,7 @@ CloudSeedJUCEEditor::CloudSeedJUCEEditor(CloudSeedProcessor& p)
         audioProcessor.setCurrentProgram(++idx);
 
         // fix:
-        audioProcessorChanged(nullptr);
+        audioProcessorChanged(nullptr, {});
     };
 
 }
@@ -494,23 +495,25 @@ void CloudSeedJUCEEditor::resized()
 
 };
 
- void CloudSeedJUCEEditor::audioProcessorParameterChanged(AudioProcessor* processor,
-                                            int parameterIndex,
-                                            float newValue)  { }
+ void CloudSeedJUCEEditor::audioProcessorParameterChanged(AudioProcessor *processor,
+                                                          int parameterIndex,
+                                                          float newValue)
+ {}
 
- void CloudSeedJUCEEditor::audioProcessorChanged(juce::AudioProcessor* p)
-{
-    auto sp = Component::SafePointer<CloudSeedJUCEEditor> (this);
+ void CloudSeedJUCEEditor::audioProcessorChanged(juce::AudioProcessor *p,
+                                                 const ChangeDetails &details)
+ {
+    auto sp = Component::SafePointer<CloudSeedJUCEEditor>(this);
 
-    juce::MessageManager::callAsync([sp](){
+    juce::MessageManager::callAsync([sp]() {
         if (sp == nullptr)
             return;
 
         auto THIS = sp.getComponent();
 
-        THIS->presetName.value = THIS->audioProcessor.getProgramName(THIS->audioProcessor.getCurrentProgram()).toStdString();
+        THIS->presetName.value = THIS->audioProcessor
+                                     .getProgramName(THIS->audioProcessor.getCurrentProgram())
+                                     .toStdString();
         THIS->presetName.repaint();
     });
-}
-
-
+ }

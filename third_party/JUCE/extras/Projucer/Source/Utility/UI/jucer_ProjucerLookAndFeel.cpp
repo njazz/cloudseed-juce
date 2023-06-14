@@ -2,15 +2,15 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 6 End-User License
-   Agreement and JUCE Privacy Policy (both effective as of the 16th June 2020).
+   By using JUCE, you agree to the terms of both the JUCE 7 End-User License
+   Agreement and JUCE Privacy Policy.
 
-   End User License Agreement: www.juce.com/juce-6-licence
+   End User License Agreement: www.juce.com/juce-7-licence
    Privacy Policy: www.juce.com/juce-privacy-policy
 
    Or: You may also use this code under the terms of the GPL v3 (see
@@ -26,9 +26,7 @@
 #include "../../Application/jucer_Headers.h"
 #include "jucer_ProjucerLookAndFeel.h"
 
-#ifndef BUILDING_JUCE_COMPILEENGINE
- #include "../../Project/UI/jucer_ProjectContentComponent.h"
-#endif
+#include "../../Project/UI/jucer_ProjectContentComponent.h"
 
 //==============================================================================
 ProjucerLookAndFeel::ProjucerLookAndFeel()
@@ -50,16 +48,14 @@ void ProjucerLookAndFeel::drawTabButton (TabBarButton& button, Graphics& g, bool
     const auto alpha = button.isEnabled() ? ((isMouseOver || isMouseDown) ? 1.0f : 0.8f) : 0.3f;
     auto textColour = findColour (defaultTextColourId).withMultipliedAlpha (alpha);
 
-   #ifndef BUILDING_JUCE_COMPILEENGINE
     auto iconColour = findColour (button.isFrontTab() ? activeTabIconColourId
                                                       : inactiveTabIconColourId);
 
     auto isProjectTab = button.getName() == ProjectContentComponent::getProjectTabName();
-    auto isBuildTab = button.getName() == ProjectContentComponent::getBuildTabName();
 
-    if (isProjectTab || isBuildTab)
+    if (isProjectTab)
     {
-        auto icon = Icon (isProjectTab ? getIcons().closedFolder : getIcons().buildTab,
+        auto icon = Icon (getIcons().closedFolder,
                           iconColour.withMultipliedAlpha (alpha));
 
         auto isSingleTab = (button.getTabbedButtonBar().getNumTabs() == 1);
@@ -73,7 +69,7 @@ void ProjucerLookAndFeel::drawTabButton (TabBarButton& button, Graphics& g, bool
             activeArea.removeFromLeft (10);
 
             g.setColour (textColour);
-            g.drawFittedText (isProjectTab ? ProjectContentComponent::getProjectTabName() : ProjectContentComponent::getBuildTabName(),
+            g.drawFittedText (ProjectContentComponent::getProjectTabName(),
                               activeArea, Justification::centredLeft, 1);
         }
         else
@@ -82,7 +78,6 @@ void ProjucerLookAndFeel::drawTabButton (TabBarButton& button, Graphics& g, bool
         }
     }
     else
-   #endif
     {
         TextLayout textLayout;
         LookAndFeel_V3::createTabTextLayout (button, (float) area.getWidth(), (float) area.getHeight(), textColour, textLayout);
@@ -99,23 +94,21 @@ int ProjucerLookAndFeel::getTabButtonBestWidth (TabBarButton& button, int)
     return 120;
 }
 
-void ProjucerLookAndFeel::drawPropertyComponentLabel (Graphics& g, int width, int height, PropertyComponent& component)
+void ProjucerLookAndFeel::drawPropertyComponentLabel (Graphics& g, int, int height, PropertyComponent& component)
 {
-    ignoreUnused (width);
-
     g.setColour (component.findColour (defaultTextColourId)
                           .withMultipliedAlpha (component.isEnabled() ? 1.0f : 0.6f));
 
-    auto textWidth = getTextWidthForPropertyComponent (&component);
+    auto textWidth = getTextWidthForPropertyComponent (component);
 
     g.setFont (getPropertyComponentFont());
-    g.drawFittedText (component.getName(), 0, 0, textWidth - 5, height, Justification::centredLeft, 5, 1.0f);
+    g.drawFittedText (component.getName(), 0, 0, textWidth, height, Justification::centredLeft, 5, 1.0f);
 }
 
 Rectangle<int> ProjucerLookAndFeel::getPropertyComponentContentPosition (PropertyComponent& component)
 {
-    const auto textW = getTextWidthForPropertyComponent (&component);
-    return { textW, 0, component.getWidth() - textW, component.getHeight() - 1 };
+    const auto paddedTextW = getTextWidthForPropertyComponent (component) + 5;
+    return { paddedTextW , 0, component.getWidth() - paddedTextW, component.getHeight() - 1 };
 }
 
 void ProjucerLookAndFeel::drawButtonBackground (Graphics& g,

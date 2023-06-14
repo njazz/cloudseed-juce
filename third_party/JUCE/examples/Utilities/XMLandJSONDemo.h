@@ -2,7 +2,7 @@
   ==============================================================================
 
    This file is part of the JUCE examples.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    The code included in this file is provided under the terms of the ISC license
    http://www.isc.org/downloads/software-support-policy/isc-license. Permission
@@ -31,7 +31,7 @@
 
  dependencies:     juce_core, juce_data_structures, juce_events, juce_graphics,
                    juce_gui_basics, juce_gui_extra
- exporters:        xcode_mac, vs2019, linux_make, androidstudio, xcode_iphone
+ exporters:        xcode_mac, vs2022, linux_make, androidstudio, xcode_iphone
 
  moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
@@ -95,11 +95,9 @@ public:
                 // create and add sub-items to this node of the tree, corresponding to
                 // each sub-element in the XML..
 
-                forEachXmlChildElement (xml, child)
-                {
-                    jassert (child != nullptr);
-                    addSubItem (new XmlTreeItem (*child));
-                }
+                for (auto* child : xml.getChildIterator())
+                    if (child != nullptr)
+                        addSubItem (new XmlTreeItem (*child));
             }
         }
         else
@@ -262,6 +260,7 @@ public:
         addAndMakeVisible (codeDocumentComponent);
         codeDocument.addListener (this);
 
+        resultsTree.setTitle ("Results");
         addAndMakeVisible (resultsTree);
         resultsTree.setColour (TreeView::backgroundColourId, Colours::white);
         resultsTree.setDefaultOpenness (true);

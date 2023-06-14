@@ -1,15 +1,15 @@
 # ==============================================================================
 #
 #  This file is part of the JUCE library.
-#  Copyright (c) 2020 - Raw Material Software Limited
+#  Copyright (c) 2022 - Raw Material Software Limited
 #
 #  JUCE is an open source library subject to commercial or open-source
 #  licensing.
 #
-#  By using JUCE, you agree to the terms of both the JUCE 6 End-User License
-#  Agreement and JUCE Privacy Policy (both effective as of the 16th June 2020).
+#  By using JUCE, you agree to the terms of both the JUCE 7 End-User License
+#  Agreement and JUCE Privacy Policy.
 #
-#  End User License Agreement: www.juce.com/juce-6-licence
+#  End User License Agreement: www.juce.com/juce-7-licence
 #  Privacy Policy: www.juce.com/juce-privacy-policy
 #
 #  Or: You may also use this code under the terms of the GPL v3 (see
@@ -30,7 +30,16 @@ juce_add_gui_app(DemoRunner
     CAMERA_PERMISSION_ENABLED       TRUE
     BLUETOOTH_PERMISSION_ENABLED    TRUE
     FILE_SHARING_ENABLED            TRUE
-    DOCUMENT_BROWSER_ENABLED        TRUE)
+    DOCUMENT_BROWSER_ENABLED        TRUE
+    REQUIRES_FULL_SCREEN            FALSE
+    IPAD_SCREEN_ORIENTATIONS        UIInterfaceOrientationPortrait
+                                    UIInterfaceOrientationPortraitUpsideDown
+                                    UIInterfaceOrientationLandscapeLeft
+                                    UIInterfaceOrientationLandscapeRight
+    IPHONE_SCREEN_ORIENTATIONS      UIInterfaceOrientationPortrait
+                                    UIInterfaceOrientationPortraitUpsideDown
+                                    UIInterfaceOrientationLandscapeLeft
+                                    UIInterfaceOrientationLandscapeRight)
 
 juce_generate_juce_header(DemoRunner)
 
@@ -46,7 +55,8 @@ target_compile_definitions(DemoRunner PRIVATE
     PIP_JUCE_EXAMPLES_DIRECTORY_STRING="${JUCE_SOURCE_DIR}/examples"
     JUCE_ALLOW_STATIC_NULL_VARIABLES=0
     JUCE_DEMO_RUNNER=1
-    JUCE_JACK=1
+    JUCE_PLUGINHOST_LV2=1
+    JUCE_PLUGINHOST_VST3=1
     JUCE_STRICT_REFCOUNTEDPOINTER=1
     JUCE_UNIT_TESTS=1
     JUCE_USE_CAMERA=1
@@ -57,7 +67,6 @@ target_compile_definitions(DemoRunner PRIVATE
 target_link_libraries(DemoRunner PRIVATE
     juce::juce_analytics
     juce::juce_audio_utils
-    juce::juce_blocks_basics
     juce::juce_box2d
     juce::juce_dsp
     juce::juce_opengl
@@ -68,4 +77,6 @@ target_link_libraries(DemoRunner PRIVATE
     juce::juce_recommended_lto_flags
     juce::juce_recommended_warning_flags)
 
-juce_add_bundle_resources_directory(DemoRunner ../Assets)
+foreach(folder IN ITEMS ../Assets ../Audio ../DSP ../GUI ../Utilities)
+    juce_add_bundle_resources_directory(DemoRunner ${folder})
+endforeach()

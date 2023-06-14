@@ -2,7 +2,7 @@
   ==============================================================================
 
    This file is part of the JUCE examples.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    The code included in this file is provided under the terms of the ISC license
    http://www.isc.org/downloads/software-support-policy/isc-license. Permission
@@ -31,7 +31,7 @@
 
  dependencies:     juce_core, juce_data_structures, juce_events, juce_graphics,
                    juce_gui_basics
- exporters:        xcode_mac, vs2019, linux_make, androidstudio, xcode_iphone
+ exporters:        xcode_mac, vs2022, linux_make, androidstudio, xcode_iphone
 
  moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
@@ -644,35 +644,44 @@ public:
         demos.add (new LinesDemo  (controls));
 
         addAndMakeVisible (listBox);
+        listBox.setTitle ("Test List");
         listBox.setModel (this);
         listBox.selectRow (0);
     }
 
-    void resized()
+    void resized() override
     {
         listBox.setBounds (getLocalBounds());
     }
 
-    int getNumRows()
+    int getNumRows() override
     {
         return demos.size();
     }
 
-    void paintListBoxItem (int rowNumber, Graphics& g, int width, int height, bool rowIsSelected)
+    void paintListBoxItem (int rowNumber, Graphics& g, int width, int height, bool rowIsSelected) override
     {
-        if (auto* demo = demos[rowNumber])
-        {
-            if (rowIsSelected)
-                g.fillAll (Colour::contrasting (findColour (ListBox::textColourId),
-                                                findColour (ListBox::backgroundColourId)));
+        if (demos[rowNumber] == nullptr)
+            return;
 
-            g.setColour (findColour (ListBox::textColourId));
-            g.setFont (14.0f);
-            g.drawFittedText (demo->getName(), 8, 0, width - 10, height, Justification::centredLeft, 2);
-        }
+        if (rowIsSelected)
+            g.fillAll (Colour::contrasting (findColour (ListBox::textColourId),
+                                            findColour (ListBox::backgroundColourId)));
+
+        g.setColour (findColour (ListBox::textColourId));
+        g.setFont (14.0f);
+        g.drawFittedText (getNameForRow (rowNumber), 8, 0, width - 10, height, Justification::centredLeft, 2);
     }
 
-    void selectedRowsChanged (int lastRowSelected)
+    String getNameForRow (int rowNumber) override
+    {
+        if (auto* demo = demos[rowNumber])
+            return demo->getName();
+
+        return {};
+    }
+
+    void selectedRowsChanged (int lastRowSelected) override
     {
         demoHolder.setDemo (demos [lastRowSelected]);
     }

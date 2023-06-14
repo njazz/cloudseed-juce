@@ -2,15 +2,15 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 6 End-User License
-   Agreement and JUCE Privacy Policy (both effective as of the 16th June 2020).
+   By using JUCE, you agree to the terms of both the JUCE 7 End-User License
+   Agreement and JUCE Privacy Policy.
 
-   End User License Agreement: www.juce.com/juce-6-licence
+   End User License Agreement: www.juce.com/juce-7-licence
    Privacy Policy: www.juce.com/juce-privacy-policy
 
    Or: You may also use this code under the terms of the GPL v3 (see
@@ -32,7 +32,7 @@ enum class PannerRule
 {
     linear,          // regular 6 dB or linear panning rule, allows the panned sound to be
                      // perceived as having a constant level when summed to mono
-    balanced,        // both left and right are 1 when pan value is 0.5, with left decreasing
+    balanced,        // both left and right are 1 when pan value is 0, with left decreasing
                      // to 0 above this value and right decreasing to 0 below it
     sin3dB,          // alternate version of the regular 3 dB panning rule with a sine curve
     sin4p5dB,        // alternate version of the regular 4.5 dB panning rule with a sine curve
@@ -84,8 +84,7 @@ public:
         const auto numOutputChannels = outputBlock.getNumChannels();
         const auto numSamples        = outputBlock.getNumSamples();
 
-        jassert (inputBlock.getNumSamples() == numSamples);
-        ignoreUnused (numSamples);
+        jassertquiet (inputBlock.getNumSamples() == numSamples);
 
         if (numOutputChannels != 2 || numInputChannels == 0 || numInputChannels > 2)
             return;
