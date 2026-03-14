@@ -14,6 +14,7 @@
 
 
 #include <juce_analytics/juce_analytics.h>
+#include <juce_animation/juce_animation.h>
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_audio_formats/juce_audio_formats.h>
@@ -28,6 +29,8 @@
 #include <juce_graphics/juce_graphics.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <juce_gui_extra/juce_gui_extra.h>
+#include <juce_javascript/juce_javascript.h>
+#include <juce_midi_ci/juce_midi_ci.h>
 #include <juce_opengl/juce_opengl.h>
 #include <juce_osc/juce_osc.h>
 #include <juce_product_unlocking/juce_product_unlocking.h>
@@ -54,7 +57,7 @@ namespace ProjectInfo
 {
     const char* const  projectName    = "DemoRunner";
     const char* const  companyName    = "Raw Material Software Limited";
-    const char* const  versionString  = "7.0.5";
-    const int          versionNumber  = 0x70005;
+    const char* const  versionString  = "8.0.10";
+    const int          versionNumber  = 0x8000a;
 }
 #endif

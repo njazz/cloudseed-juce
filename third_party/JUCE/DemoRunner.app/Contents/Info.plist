@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>BuildMachineOSBuild</key>
-	<string>21E258</string>
+	<string>24F74</string>
 	<key>CFBundleDisplayName</key>
 	<string>DemoRunner</string>
 	<key>CFBundleExecutable</key>
@@ -17,7 +17,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>7.0.5</string>
+	<string>8.0.10</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleSupportedPlatforms</key>
@@ -25,23 +25,23 @@
 		<string>MacOSX</string>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>7.0.5</string>
+	<string>8.0.10</string>
 	<key>DTCompiler</key>
 	<string>com.apple.compilers.llvm.clang.1_0</string>
 	<key>DTPlatformBuild</key>
-	<string>13E500a</string>
+	<string>24F74</string>
 	<key>DTPlatformName</key>
 	<string>macosx</string>
 	<key>DTPlatformVersion</key>
-	<string>12.3</string>
+	<string>15.5</string>
 	<key>DTSDKBuild</key>
-	<string>21E226</string>
+	<string>24F74</string>
 	<key>DTSDKName</key>
-	<string>macosx12.3</string>
+	<string>macosx15.5</string>
 	<key>DTXcode</key>
-	<string>1331</string>
+	<string>1640</string>
 	<key>DTXcodeBuild</key>
-	<string>13E500a</string>
+	<string>16F6</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.developer-tools</string>
 	<key>LSMinimumSystemVersion</key>
@@ -53,7 +53,7 @@
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
-	<string>Copyright (c) 2020 - Raw Material Software Limited</string>
+	<string>Copyright (c) - Raw Material Software Limited</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>This app requires audio input. If you do not have an audio interface connected it will use the built-in microphone.</string>
 </dict>
